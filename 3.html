@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DDoS RESPONSE: UCM COMMAND CENTER</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0b0c10;
+            --panel-bg: #1f2833;
+            --text-main: #c5c6c7;
+            --accent-cyan: #66fcf1;
+            --accent-dark: #45a29e;
+            --danger: #ff3b3b;
+            --warning: #ffcc00;
+            --success: #00ff88;
+            --font-mono: 'Courier New', monospace;
+            --font-ui: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --border-style: 1px solid #333;
+        }
+
+        [data-theme="pastel"] {
+            --bg-color: #fdfcf0;
+            --panel-bg: #ffffff;
+            --text-main: #2d3436;
+            --accent-cyan: #74b9ff;
+            --accent-dark: #0984e3;
+            --danger: #ff7675;
+            --warning: #ffeaa7;
+            --success: #55efc4;
+            --border-style: 1px solid #dfe6e9;
+        }
+
+        [data-theme="grayscale"] {
+            --bg-color: #ffffff;
+            --panel-bg: #f5f5f5;
+            --text-main: #000000;
+            --accent-cyan: #333333;
+            --accent-dark: #000000;
+            --danger: #000000;
+            --warning: #666666;
+            --success: #333333;
+            --border-style: 1px solid #000;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-ui);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        #top-bar {
+            height: 60px;
+            background: var(--panel-bg);
+            border-bottom: 2px solid var(--accent-dark);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        .brand { font-family: var(--font-mono); font-weight: 800; font-size: 1.2rem; color: var(--accent-cyan); letter-spacing: 1px; }
+        .kpi-group { display: flex; gap: 25px; }
+        .kpi { text-align: center; }
+        .kpi label { display: block; font-size: 0.7rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 1px; }
+        .kpi value { font-size: 1.2rem; font-weight: 700; font-family: var(--font-mono); color: var(--accent-cyan); }
+        .timer-box { border: 2px solid var(--accent-dark); padding: 5px 10px; border-radius: 4px; font-family: var(--font-mono); font-weight: bold; color: var(--warning); font-size: 1.2rem; }
+
+        #main-layout {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            padding: 10px;
+            gap: 10px;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            border-radius: 4px;
+            border: var(--border-style);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        #left-panel { width: 320px; flex-shrink: 0; }
+        #center-panel { flex: 1; position: relative; min-width: 0; }
+        #right-panel { width: 300px; flex-shrink: 0; }
+
+        .panel-header {
+            padding: 10px 15px;
+            background: rgba(0,0,0,0.05);
+            border-bottom: var(--border-style);
+            font-weight: 700;
+            font-size: 0.9rem;
+            color: var(--accent-dark);
+            text-transform: uppercase;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .panel-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+        }
+
+        .btn {
+            width: 100%;
+            background: rgba(0,0,0,0.05);
+            border: 1px solid var(--accent-dark);
+            color: var(--text-main);
+            padding: 12px;
+            cursor: pointer;
+            margin-bottom: 8px;
+            font-family: var(--font-ui);
+            font-weight: 600;
+            transition: all 0.2s;
+            text-align: left;
+            border-radius: 4px;
+        }
+        .btn:hover:not(:disabled) { background: var(--accent-cyan); color: var(--bg-color); font-weight: 800; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn.active { background: var(--accent-dark); color: #fff; border-color: #fff; }
+        
+        .card {
+            background: rgba(255,255,255,0.03);
+            border: var(--border-style);
+            padding: 15px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: 0.2s;
+            border-radius: 4px;
+        }
+        .card:hover { border-color: var(--accent-cyan); transform: translateY(-2px); }
+        .card.selected { border: 2px solid var(--accent-cyan); background: rgba(102, 252, 241, 0.1); }
+        
+        .log-entry {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(128,128,128,0.2);
+            color: var(--text-main);
+            opacity: 0.9;
+        }
+        .log-time { color: var(--accent-dark); margin-right: 5px; font-weight: bold; }
+        .log-crit { color: var(--danger); }
+        .log-ok { color: var(--success); }
+        .log-warn { color: var(--warning); }
+
+        #topology-canvas { width: 100%; height: 300px; background: rgba(0,0,0,0.2); border-bottom: var(--border-style); }
+        #chart-container { flex: 1; position: relative; min-height: 0; padding: 10px; }
+        
+        .act-title { font-size: 1.5rem; color: var(--text-main); text-align: center; margin-bottom: 20px; border-bottom: 1px solid var(--accent-dark); padding-bottom: 10px; }
+        .phase-indicator { 
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            background: var(--panel-bg); padding: 5px 20px; border-radius: 20px; 
+            border: 1px solid var(--accent-dark); z-index: 5; font-size: 0.85rem; font-weight: bold;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 100; display: none;
+            justify-content: center; align-items: center; backdrop-filter: blur(5px);
+        }
+        .modal {
+            background: var(--panel-bg); border: 2px solid var(--accent-cyan); color: var(--text-main);
+            width: 700px; padding: 30px; border-radius: 8px; max-height: 90vh; overflow-y: auto;
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+        }
+        .modal h2 { margin-top: 0; color: var(--accent-cyan); border-bottom: 1px solid var(--accent-dark); padding-bottom: 10px; }
+        .tut-step { margin-bottom: 20px; padding-left: 15px; border-left: 3px solid var(--accent-dark); }
+        .tut-step h3 { margin: 0 0 5px 0; color: var(--accent-dark); font-size: 1.1rem; }
+        .tut-step p { margin: 0; font-size: 0.95rem; line-height: 1.5; }
+
+        .context-box {
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        .context-box strong { color: var(--accent-cyan); display: block; margin-top: 10px; margin-bottom: 5px; font-size: 1rem;}
+        .context-highlight { background: rgba(255,255,255,0.1); padding: 10px; border-radius: 4px; border-left: 3px solid var(--warning); margin: 10px 0; }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+        ::-webkit-scrollbar-thumb { background: var(--accent-dark); border-radius: 4px; }
+        
+        .btn-danger { color: var(--danger); border-color: var(--danger); }
+        .btn-danger:hover { background: var(--danger); color: white; }
+
+        .close-icon {
+            position: absolute; top: 20px; right: 20px;
+            background: none; border: none; color: var(--text-main);
+            font-size: 1.5rem; cursor: pointer; line-height: 1;
+            z-index: 110;
+        }
+        .close-icon:hover { color: var(--danger); }
+    </style>
+</head>
+<body>
+
+<div id="top-bar">
+    <div class="brand">DDoS::UCM_COMMANDER</div>
+    <div class="kpi-group">
+        <div class="kpi"><label>SLA WEB</label><value id="kpi-sla" style="color:var(--success)">100%</value></div>
+        <div class="kpi"><label>SATISFACCIÓN</label><value id="kpi-sat">100</value></div>
+        <div class="kpi"><label>PRESUPUESTO</label><value id="kpi-budget">2500</value></div>
+    </div>
+    <div style="display:flex; align-items:center; gap:15px;">
+        <button class="btn" style="width:auto; padding:5px 15px; margin:0;" onclick="toggleTheme()" title="Cambiar Tema">🎨</button>
+        <div class="timer-box" id="timer">40:00</div>
+        <button class="btn" style="width:auto; padding:5px 15px; margin:0; border-color:var(--danger); color:var(--danger);" onclick="location.reload()" title="Reiniciar">⏻</button>
+    </div>
+</div>
+
+<div id="main-layout">
+    <div id="left-panel" class="panel">
+        <div class="panel-header" id="left-header">PANEL DE CONTROL</div>
+        <div id="left-content" class="panel-content">
+        </div>
+    </div>
+
+    <div id="center-panel" class="panel">
+        <div class="phase-indicator" id="phase-label">CARGANDO SIMULACIÓN...</div>
+        
+        <div id="act0-area" style="display:none; padding:20px; overflow-y:auto; height:100%;"></div>
+
+        <div id="ops-area" style="display:none; height:100%; flex-direction:column;">
+            <canvas id="topology-canvas"></canvas>
+            <div id="chart-container">
+                <canvas id="traffic-chart"></canvas>
+            </div>
+        </div>
+
+        <div id="report-area" style="display:none; padding:30px; overflow-y:auto; height:100%;"></div>
+    </div>
+
+    <div id="right-panel" class="panel">
+        <div class="panel-header">LIVE LOGS (SIEM)</div>
+        <div id="log-content" class="panel-content" style="font-family:var(--font-mono)">
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modal">
+    <div class="modal-content modal" style="position:relative;">
+        <button class="close-icon" onclick="closeModal()">&times;</button>
+        <h2 id="modal-title"></h2>
+        <div id="modal-body"></div>
+        <div style="margin-top:20px; text-align:right;">
+            <button class="btn" style="width:auto; display:inline-block;" onclick="closeModal()">ENTENDIDO</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const State = {
+    phase: 0,
+    timeLeft: 2400,
+    sla: 100,
+    satisfaction: 100,
+    credits: 2500,
+    traffic: { normal: 100, malicious: 0, mitigated: 0 },
+    capacity: 1000,
+    team: [],
+    actions: [],
+    logs: [],
+    history: [],
+    incidentType: 'volumetric_ddos',
+    mitigationEfficiency: 0,
+    isRunning: false,
+    theme: 'tron',
+    rolesData: [],
+    packets: [],
+    traces: []
+};
+
+window.onload = () => {
+    showIntroModal();
+};
+
+function startGame() {
+    startTimer();
+    renderPhase0();
+    log("SISTEMA DE GESTIÓN UCM INICIALIZADO.", "SYS");
+    log("ALERTA CRÍTICA: Caída de servicio en Matrícula.", "WARN");
+}
+
+function toggleTheme() {
+    const themes = ['tron', 'pastel', 'grayscale'];
+    let idx = themes.indexOf(State.theme);
+    idx = (idx + 1) % themes.length;
+    State.theme = themes[idx];
+    
+    if (State.theme === 'tron') {
+        document.documentElement.removeAttribute('data-theme');
+    } else {
+        document.documentElement.setAttribute('data-theme', State.theme);
+    }
+}
+
+function startTimer() {
+    State.isRunning = true;
+    const timerEl = document.getElementById('timer');
+    const loop = setInterval(() => {
+        if(!State.isRunning) return;
+        
+        State.timeLeft--;
+        let m = Math.floor(State.timeLeft / 60);
+        let s = State.timeLeft % 60;
+        timerEl.innerText = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+
+        if(State.timeLeft <= 0) endGame();
+
+        if(State.phase >= 1 && State.phase < 4) simulationTick();
+
+    }, 1000);
+}
+
+function simulationTick() {
+    const timeFactor = (2400 - State.timeLeft);
+    State.traffic.normal = 100 + Math.sin(timeFactor/10) * 20 + (Math.random()*10);
+    
+    let attackLoad = 0;
+    if(State.phase >= 1) {
+        attackLoad = 200 + (timeFactor * 2.5);
+        if(attackLoad > 6000) attackLoad = 6000 + (Math.random()*500);
+    }
+    State.traffic.malicious = attackLoad;
+
+    let mitigated = 0;
+    if(State.phase >= 2) {
+        mitigated = attackLoad * State.mitigationEfficiency;
+    }
+    State.traffic.mitigated = mitigated;
+
+    const netTraffic = State.traffic.normal + (State.traffic.malicious - mitigated);
+    const loadPercent = (netTraffic / State.capacity) * 100;
+    
+    if(loadPercent > 100) {
+        State.sla -= 0.15;
+        if(Math.random() > 0.85) log("TIMEOUT: Servidor web saturado (503 Error).", "ERR");
+    } else if(State.sla < 100) {
+        State.sla += 0.05;
+    }
+    State.sla = Math.max(0, Math.min(100, State.sla));
+
+    if(State.sla < 80 && Math.random() > 0.9) {
+        State.satisfaction -= 1;
+        log("RRSS: #UCMCaida es trending topic.", "WARN");
+    }
+    State.satisfaction = Math.max(0, State.satisfaction);
+
+    updateKPIs();
+    updateChart(netTraffic);
+}
+
+function showIntroModal() {
+    document.getElementById('modal-title').innerText = "PROTOCOLO DDoS: UNIVERSIDAD COMPLUTENSE";
+    document.getElementById('modal-body').innerHTML = `
+        <div class="tut-step">
+            <h3>ACTO 0: EQUIPO DE CRISIS</h3>
+            <p>Selecciona los perfiles clave de la estructura UCM (SSII, Rectorado, RedIRIS) para gestionar el incidente.</p>
+        </div>
+        <div class="tut-step">
+            <h3>ACTO 1: DIAGNÓSTICO</h3>
+            <p>Analiza el tráfico de red. Diferencia entre la carga de matrícula y un ataque hostil.</p>
+        </div>
+        <div class="tut-step">
+            <h3>ACTO 2: MITIGACIÓN</h3>
+            <p>Activa medidas técnicas (WAF, Scrubbing de RedIRIS, Blackhole) equilibrando coste y efectividad.</p>
+        </div>
+        <div class="tut-step">
+            <h3>ACTO 3: COMUNICACIÓN</h3>
+            <p>Gestiona la crisis reputacional ante los estudiantes y medios.</p>
+        </div>
+        <div class="tut-step">
+            <h3>ACTO 4: CIERRE</h3>
+            <p>Genera el informe forense oficial (PDF + LaTeX).</p>
+        </div>
+    `;
+    const btn = document.querySelector('#modal .btn');
+    btn.innerText = "TOMAR EL MANDO";
+    btn.onclick = () => {
+        closeModal();
+        startGame();
+    };
+    document.getElementById('modal').style.display = 'flex';
+}
+
+function renderPhase0() {
+    State.phase = 0;
+    document.getElementById('phase-label').innerText = "ACTO 0: COMITÉ DE CRISIS";
+    document.getElementById('left-header').innerText = "CONTEXTO UCM";
+    
+    const left = document.getElementById('left-content');
+    left.innerHTML = `
+        <div class="context-box" style="padding:15px;">
+            <strong>ALERTA CRÍTICA #UCM-2025</strong>
+            <p>Fecha: 26 Nov 2025 - 09:00 AM</p>
+            <div class="context-highlight">
+                <strong>PERIODO DE MATRÍCULA ABIERTO</strong>
+                <br>Miles de alumnos intentan acceder al portal de gestión académica.
+            </div>
+            <p>Los servicios de monitorización de los SSII reportan latencia crítica.</p>
+            <strong>OBJETIVOS:</strong>
+            <ul>
+                <li>Restaurar el portal de matrícula.</li>
+                <li>Coordinar con RedIRIS.</li>
+                <li>Gestionar comunicación.</li>
+            </ul>
+            <strong>RECURSOS:</strong>
+            <p>Presupuesto: ${State.credits} Créditos.</p>
+        </div>
+    `;
+
+    const center = document.getElementById('act0-area');
+    center.style.display = 'block';
+    document.getElementById('ops-area').style.display = 'none';
+
+    const roles = [
+        { id:'net', name:'Resp. Comunicaciones (SSII)', cost:300, tech:3, comms:0, desc:'Gestión red troncal UCM.', ucm_desc: 'Responsable técnico de infraestructura UCM. Gestiona firewalls perimetrales y enlaces RedIRIS.' },
+        { id:'dev', name:'Jefe Gestión Académica', cost:200, tech:2, comms:0, desc:'Portal de matrícula.', ucm_desc: 'Lidera desarrollo del portal. Puede optimizar consultas bajo carga.' },
+        { id:'isp', name:'Enlace RedIRIS', cost:400, tech:1, comms:1, desc:'Coordinación ISP.', ucm_desc: 'Contacto directo con RedIRIS. Solicita mitigación volumétrica upstream.' },
+        { id:'press', name:'Gabinete Comunicación', cost:200, tech:0, comms:3, desc:'Portavoz oficial.', ucm_desc: 'Gestiona @unicomplutense y prensa. Vital para calmar redes sociales.' },
+        { id:'rector', name:'Vicerrector TIC', cost:100, tech:0, comms:2, desc:'Autoridad política.', ucm_desc: 'Representante Rectorado. Autoriza cierre de servicio o gastos extra.' },
+        { id:'help', name:'Soporte UCM (CAU)', cost:100, tech:1, comms:1, desc:'Atención usuarios.', ucm_desc: 'Centro Atención Usuario. Reciben quejas directas.' }
+    ];
+
+    let html = '<h3 class="act-title">SELECCIÓN DE PERSONAL</h3>';
+    html += '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:15px;">';
+    roles.forEach(r => {
+        html += `
+        <div class="card" id="card-${r.id}" onclick="showProfileModal('${r.id}')">
+            <div style="font-weight:bold; color:var(--accent-cyan); font-size:1.1rem;">${r.name}</div>
+            <div style="font-size:0.85rem; margin:8px 0; color:var(--text-main); opacity:0.9;">${r.desc}</div>
+            <div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:0.8rem; color:#888; margin-top:5px; border-top:1px solid #444; padding-top:5px;">
+                <span style="color:var(--warning)">${r.cost} CR</span>
+                <span>TEC:${r.tech} COM:${r.comms}</span>
+            </div>
+        </div>`;
+    });
+    html += '</div><br><button class="btn" style="background:var(--success); color:#000; font-weight:bold;" onclick="finishAct0()">CONFIRMAR Y DESPLEGAR</button>';
+    center.innerHTML = html;
+    State.rolesData = roles;
+}
+
+function showProfileModal(id) {
+    const p = State.rolesData.find(x => x.id === id);
+    const isSelected = State.team.includes(id);
+    const actionText = isSelected ? "QUITAR DEL EQUIPO" : "CONTRATAR";
+    const actionClass = isSelected ? "btn-danger" : "btn-success";
+    
+    const content = `
+        <div style="position:relative;">
+            <div style="text-align:left;">
+                <h3 style="color:var(--accent-cyan); margin-top:0; border-bottom:1px solid #444; padding-bottom:10px; padding-right: 30px;">${p.name}</h3>
+                <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:4px; margin-bottom:20px;">
+                    <strong>FUNCIÓN EN LA UCM:</strong>
+                    <p style="margin-top:5px; line-height:1.6;">${p.ucm_desc}</p>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; font-family:var(--font-mono);">
+                    <div style="text-align:center; background:rgba(0,0,0,0.3); padding:10px;">
+                        <span style="display:block; font-size:1.5rem; color:var(--accent-cyan)">${p.tech}</span>
+                        <small>NIVEL TÉCNICO</small>
+                    </div>
+                    <div style="text-align:center; background:rgba(0,0,0,0.3); padding:10px;">
+                        <span style="display:block; font-size:1.5rem; color:var(--danger)">${p.comms}</span>
+                        <small>COMUNICACIÓN</small>
+                    </div>
+                </div>
+            </div>
+            <div style="margin-top:25px; display:flex; gap:10px; align-items:center;">
+                <div style="flex:1; font-weight:bold; color:var(--warning); font-size:1.2rem;">COSTE: ${p.cost} CR</div>
+                <button class="btn" style="flex:1;" onclick="closeModal()">CERRAR FICHA</button> 
+                <button class="btn ${actionClass}" style="flex:1;" onclick="toggleTeamFromModal('${p.id}', ${p.cost})">${actionText}</button>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('modal-title').innerText = "FICHA DE PERSONAL UCM";
+    document.getElementById('modal-body').innerHTML = content;
+    document.querySelector('#modal .btn').style.display = 'none'; 
+    document.getElementById('modal').style.display = 'flex';
+}
+
+function toggleTeamFromModal(id, cost) {
+    const idx = State.team.indexOf(id);
+    const card = document.getElementById(`card-${id}`);
+    
+    if (idx > -1) {
+        State.team.splice(idx, 1);
+        State.credits += cost;
+        card.classList.remove('selected');
+    } else {
+        if (State.credits >= cost) {
+            State.team.push(id);
+            State.credits -= cost;
+            card.classList.add('selected');
+        } else {
+            alert("Créditos insuficientes.");
+            return; 
+        }
+    }
+    updateKPIs();
+    closeModal();
+}
+
+function finishAct0() {
+    if(State.team.length < 2) { alert("Equipo insuficiente. Selecciona al menos 2 perfiles."); return; }
+    State.history.push({act: 0, msg: "Equipo seleccionado: " + State.team.join(', ')});
+    renderPhase1();
+}
+
+function renderPhase1() {
+    State.phase = 1;
+    document.getElementById('act0-area').style.display = 'none';
+    document.getElementById('ops-area').style.display = 'flex';
+    document.getElementById('phase-label').innerText = "ACTO 1: DIAGNÓSTICO";
+    document.getElementById('left-header').innerText = "HERRAMIENTAS DIAGNÓSTICO";
+    
+    initChart();
+    initTopology();
+
+    const left = document.getElementById('left-content');
+    left.innerHTML = `
+        <div style="padding:15px;">
+            <p style="margin-bottom:15px; border-bottom:1px solid #444; padding-bottom:10px;">Analiza los vectores de ataque:</p>
+            
+            <button class="btn" onclick="diagnose('flash')">
+                <div style="color:var(--accent-cyan); font-weight:bold;">1. PICO LEGÍTIMO (MATRÍCULA)</div>
+                <div style="font-size:0.75rem; opacity:0.8; margin-top:5px; font-weight:normal;">
+                    Sobrecarga por usuarios reales. Tráfico HTTPS estándar desde España.
+                </div>
+            </button>
+            
+            <button class="btn" onclick="diagnose('ddos_vol')">
+                <div style="color:var(--danger); font-weight:bold;">2. DDOS VOLUMÉTRICO</div>
+                <div style="font-size:0.75rem; opacity:0.8; margin-top:5px; font-weight:normal;">
+                    Saturación de ancho de banda. Protocolos UDP/DNS (Amplificación). IPs globales.
+                </div>
+            </button>
+            
+            <button class="btn" onclick="diagnose('ddos_app')">
+                <div style="color:var(--warning); font-weight:bold;">3. ATAQUE CAPA 7 (APP)</div>
+                <div style="font-size:0.75rem; opacity:0.8; margin-top:5px; font-weight:normal;">
+                    Agotamiento de recursos de servidor (CPU/RAM). Peticiones HTTP complejas.
+                </div>
+            </button>
+        </div>
+        <div style="padding:15px; border-top:1px solid #444; font-size:0.8rem; color:#aaa;">
+            <strong>PISTAS TÉCNICAS:</strong>
+            <ul>
+                <li>Tráfico x50 respecto a ayer.</li>
+                <li>IPs origen: Rusia, China, Brasil.</li>
+                <li>Protocolo: UDP 53 (DNS Amp).</li>
+            </ul>
+        </div>
+    `;
+    log("Tráfico entrante superando umbrales de seguridad.", "WARN");
+}
+
+function diagnose(type) {
+    let title = "";
+    let body = "";
+    let isCorrect = false;
+
+    if (type === 'ddos_vol') {
+        isCorrect = true;
+        title = "¡DIAGNÓSTICO CORRECTO!";
+        body = `
+            <div class="tut-step">
+                <h3>DDoS VOLUMÉTRICO CONFIRMADO</h3>
+                <p>Has identificado correctamente el patrón. El tráfico masivo UDP puerto 53 (DNS Amplification) y las IPs internacionales confirman un ataque de saturación de enlace, no de aplicación ni tráfico legítimo.</p>
+            </div>
+        `;
+        log("DIAGNÓSTICO CORRECTO: Patrón volumétrico confirmado.", "OK");
+        State.history.push({act: 1, msg: "Diagnóstico correcto: DDoS Volumétrico."});
+    } else if (type === 'flash') {
+        title = "DIAGNÓSTICO INCORRECTO";
+        body = `
+            <div class="tut-step" style="border-color:var(--danger)">
+                <h3 style="color:var(--danger)">NO ES UN PICO LEGÍTIMO</h3>
+                <p>Aunque es época de matrícula, el tráfico legítimo usa HTTPS (TCP 443) y proviene mayoritariamente de España. Aquí vemos UDP masivo desde Rusia/China. Has perdido tiempo y recursos.</p>
+            </div>
+        `;
+        applyPenalty();
+    } else if (type === 'ddos_app') {
+        title = "DIAGNÓSTICO INCORRECTO";
+        body = `
+            <div class="tut-step" style="border-color:var(--danger)">
+                <h3 style="color:var(--danger)">NO ES CAPA 7</h3>
+                <p>Un ataque de Capa 7 (Aplicación) suele ser bajo en ancho de banda pero alto en consumo de CPU. Aquí la tubería de red está llena (Volumétrico). Has perdido tiempo y recursos.</p>
+            </div>
+        `;
+        applyPenalty();
+    }
+
+    document.getElementById('modal-title').innerText = title;
+    document.getElementById('modal-body').innerHTML = body;
+    
+    const btn = document.querySelector('#modal .btn');
+    btn.style.display = 'inline-block';
+    
+    btn.onclick = () => {
+        closeModal();
+        if (isCorrect) renderPhase2();
+    };
+    
+    document.getElementById('modal').style.display = 'flex';
+    updateKPIs();
+}
+
+function applyPenalty() {
+    log("Diagnóstico incorrecto.", "ERR");
+    State.credits -= 100;
+    State.sla -= 5;
+}
+
+function renderPhase2() {
+    State.phase = 2;
+    document.getElementById('phase-label').innerText = "ACTO 2: MITIGACIÓN TÉCNICA";
+    document.getElementById('left-header').innerText = "CONTRAMEDIDAS";
+    
+    const actions = [
+        {id:'waf', name:'Afinar WAF', cost:200, eff: 0.1, desc:'Filtra tráfico HTTP malformado.'},
+        {id:'scrub', name:'Scrubbing RedIRIS', cost:800, eff: 0.95, desc:'Limpieza en la nube del proveedor.'},
+        {id:'rate', name:'Rate Limiting', cost:100, eff: 0.2, desc:'Limita peticiones por IP.'},
+        {id:'geo', name:'Geo-Blocking', cost:100, eff: 0.3, desc:'Bloquea tráfico internacional.'},
+        {id:'blackhole', name:'Blackholing (RTBH)', cost:0, eff: 1.0, desc:'Descarta TODO el tráfico (SLA 0%).'}
+    ];
+
+    const left = document.getElementById('left-content');
+    left.innerHTML = `
+        <div style="padding:15px;">
+        ${actions.map(a => `
+            <button class="btn" id="btn-${a.id}" onclick="toggleMitigation('${a.id}', ${a.cost}, ${a.eff})">
+                <div style="display:flex; justify-content:space-between;">
+                    <span>${a.name}</span><span style="color:var(--warning)">${a.cost}</span>
+                </div>
+                <div style="font-size:0.7rem; opacity:0.7;">${a.desc}</div>
+            </button>
+        `).join('')}
+        </div>
+        <div style="padding:15px; border-top:1px solid #444;">
+            <button class="btn" style="border-color:var(--success); color:var(--success)" onclick="renderPhase3()">AVANZAR >></button>
+        </div>
+    `;
+}
+
+function toggleMitigation(id, cost, eff) {
+    if(State.actions.includes(id)) {
+        State.actions = State.actions.filter(x => x !== id);
+        State.mitigationEfficiency -= eff;
+        document.getElementById(`btn-${id}`).classList.remove('active');
+        log(`Desactivado: ${id}`, "INFO");
+    } else {
+        if(State.credits >= cost) {
+            State.credits -= cost;
+            State.actions.push(id);
+            State.mitigationEfficiency += eff;
+            document.getElementById(`btn-${id}`).classList.add('active');
+            log(`Activado: ${id}.`, "OK");
+            State.history.push({act: 2, msg: `Acción técnica: ${id}`});
+            if(id === 'blackhole') { State.capacity = 0; log("ALERTA CRÍTICA: Blackhole activo.", "ERR"); }
+        } else {
+            log("Créditos insuficientes.", "ERR");
+        }
+    }
+    updateKPIs();
+}
+
+function renderPhase3() {
+    State.phase = 3;
+    document.getElementById('phase-label').innerText = "ACTO 3: COMUNICACIÓN";
+    document.getElementById('left-header').innerText = "ESTRATEGIA PÚBLICA";
+    
+    document.getElementById('left-content').innerHTML = `
+        <div style="padding:15px;">
+            <p style="margin-bottom:15px; font-size:0.9rem;">El Rectorado exige una respuesta oficial.</p>
+            
+            <button class="btn" onclick="sendComms('transparent')">
+                <div style="font-weight:bold; color:var(--success);">TRANSPARENCIA TOTAL</div>
+                <div style="font-size:0.75rem; opacity:0.8; margin-top:5px; font-weight:normal;">
+                    Admitir públicamente el ataque DDoS. Genera confianza, pero puede alarmar a prensa y usuarios.
+                </div>
+            </button>
+            
+            <button class="btn" onclick="sendComms('vague')">
+                <div style="font-weight:bold; color:var(--warning);">MINIMIZAR PROBLEMA</div>
+                <div style="font-size:0.75rem; opacity:0.8; margin-top:5px; font-weight:normal;">
+                    Comunicar "incidencias puntuales por alta carga". Calma a corto plazo, riesgo de descrédito si empeora.
+                </div>
+            </button>
+            
+            <button class="btn" onclick="sendComms('silent')">
+                <div style="font-weight:bold; color:var(--danger);">SILENCIO ADMINISTRATIVO</div>
+                <div style="font-size:0.75rem; opacity:0.8; margin-top:5px; font-weight:normal;">
+                    No emitir comunicados. Evita titulares inmediatos, pero enfurece a los estudiantes en redes sociales (Twitter/X).
+                </div>
+            </button>
+        </div>
+    `;
+}
+
+function sendComms(type) {
+    if(type === 'transparent') { State.satisfaction += 10; log("Confianza +10.", "OK"); }
+    else if(type === 'vague') { State.satisfaction -= 5; log("Confianza -5.", "WARN"); }
+    else { State.satisfaction -= 20; log("Confianza -20.", "ERR"); }
+    State.history.push({act: 3, msg: `Estrategia comunicación: ${type}`});
+    setTimeout(renderPhase4, 2500);
+}
+
+function renderPhase4() {
+    State.phase = 4;
+    State.isRunning = false;
+    document.getElementById('phase-label').innerText = "ACTO 4: POST-MORTEM";
+    document.getElementById('ops-area').style.display = 'none';
+    document.getElementById('report-area').style.display = 'block';
+
+    const items = [
+        {id:'cdn', label:'Contratar CDN Always-On', desc:'Distribución global de contenido estático para absorber picos.'},
+        {id:'banda', label:'Ampliar Ancho de Banda RedIRIS', desc:'Aumentar caudal contratado para evitar saturación de enlaces.'},
+        {id:'comms', label:'Protocolo Crisis en RRSS', desc:'Plantillas y personal de guardia para respuesta rápida en X/Instagram.'},
+        {id:'drill', label:'Simulacros Semestrales', desc:'Entrenamiento "Game Days" para que el equipo técnico practique la respuesta.'},
+        {id:'waf', label:'WAF Avanzado (IA)', desc:'Firewall inteligente que aprende y bloquea patrones de tráfico anómalos.'},
+        {id:'staff', label:'Ampliar Plantilla SSII', desc:'Más ingenieros disponibles para guardias 24/7 y monitorización.'}
+    ];
+
+    const reportHTML = `
+        <h1 class="act-title">INFORME DE INCIDENTE UCM</h1>
+        <div style="background:rgba(255,255,255,0.05); padding:20px; border-radius:8px; margin-bottom:20px; border:1px solid #444;">
+            <h3>RESUMEN EJECUTIVO</h3>
+            <p><strong>Duración del Incidente:</strong> ${(2400 - State.timeLeft)/60} minutos simulados.</p>
+            <p><strong>Disponibilidad Final (SLA):</strong> <span style="color:${State.sla>80?'var(--success)':'var(--danger)'}">${State.sla.toFixed(1)}%</span></p>
+            <p><strong>Satisfacción Estudiantes:</strong> ${State.satisfaction}/100</p>
+            <p><strong>Coste de Respuesta:</strong> ${2500 - State.credits} créditos</p>
+        </div>
+        
+        <h3>PLAN DE MEJORA ESTRATÉGICO</h3>
+        <p style="margin-bottom:15px; opacity:0.8;">Seleccione 3 acciones prioritarias para evitar futuros incidentes:</p>
+        
+        <div id="improvements" style="display:flex; flex-direction:column; gap:10px;">
+            ${items.map(i => `
+                <label class="btn" style="display:flex; align-items:flex-start; gap:15px; text-align:left; padding:15px; height:auto;">
+                    <input type="checkbox" value="${i.id}" style="margin-top:5px; transform:scale(1.5);">
+                    <div>
+                        <div style="font-weight:bold; color:var(--accent-cyan); font-size:1rem; margin-bottom:4px;">${i.label}</div>
+                        <div style="font-size:0.85rem; opacity:0.8; font-weight:normal;">${i.desc}</div>
+                    </div>
+                </label>
+            `).join('')}
+        </div>
+        
+        <button class="btn btn-success" style="margin-top:30px; padding:15px; font-size:1.1rem;" onclick="generateFiles()">GENERAR DOCUMENTACIÓN FINAL</button>
+    `;
+    document.getElementById('report-area').innerHTML = reportHTML;
+}
+
+async function generateFiles() {
+    const selectedImprovements = Array.from(document.querySelectorAll('#improvements input:checked')).map(cb => cb.parentNode.innerText.trim());
+    const teamNames = State.team.map(id => State.rolesData.find(r => r.id === id)?.name || id).join(', ');
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    doc.setFillColor(11, 12, 16);
+    doc.rect(0, 0, 210, 40, 'F');
+    doc.setTextColor(102, 252, 241);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.text("UCM CIBERSEGURIDAD", 20, 25);
+    doc.setFontSize(14);
+    doc.text("INFORME FORENSE DE INCIDENTE #UCM-2025-NOV", 20, 35);
+    
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("times", "normal");
+    doc.setFontSize(11);
+    
+    let y = 60;
+    
+    doc.setFont("helvetica", "bold");
+    doc.text("1. RESUMEN EJECUTIVO", 20, y);
+    y += 10;
+    doc.setFont("times", "normal");
+    doc.text(`Fecha del Informe: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, 20, y);
+    y += 7;
+    doc.text(`Incidente Detectado: ${State.incidentType.toUpperCase()}`, 20, y);
+    y += 7;
+    doc.text(`Disponibilidad Final del Servicio (SLA): ${State.sla.toFixed(2)}%`, 20, y);
+    y += 7;
+    doc.text(`Índice de Satisfacción Pública: ${State.satisfaction}/100`, 20, y);
+    y += 15;
+
+    doc.setFont("helvetica", "bold");
+    doc.text("2. COMITÉ DE CRISIS CONSTITUIDO", 20, y);
+    y += 10;
+    doc.setFont("times", "normal");
+    const splitTeam = doc.splitTextToSize(`Miembros activos: ${teamNames}`, 170);
+    doc.text(splitTeam, 20, y);
+    y += (splitTeam.length * 7) + 8;
+
+    doc.setFont("helvetica", "bold");
+    doc.text("3. CRONOLOGÍA DE ACTUACIONES", 20, y);
+    y += 10;
+    doc.setFont("courier", "normal");
+    doc.setFontSize(10);
+    State.history.forEach(h => {
+        if (y > 270) { doc.addPage(); y = 20; }
+        const line = `[FASE ${h.act}] ${h.msg}`;
+        doc.text(line, 20, y);
+        y += 6;
+    });
+    y += 10;
+    
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("4. BALANCE ECONÓMICO", 20, y);
+    y += 10;
+    doc.setFont("times", "normal");
+    doc.text(`Presupuesto Inicial: 2500 CR`, 20, y); y += 7;
+    doc.text(`Remanente: ${State.credits} CR`, 20, y); y += 7;
+    doc.text(`Coste Total Operación: ${2500 - State.credits} CR`, 20, y); y += 15;
+
+    doc.setFont("helvetica", "bold");
+    doc.text("5. PLAN ESTRATÉGICO DE MEJORA", 20, y);
+    y += 10;
+    doc.setFont("times", "normal");
+    if(selectedImprovements.length > 0) {
+        selectedImprovements.forEach(item => {
+            doc.text(`- ${item}`, 20, y);
+            y += 7;
+        });
+    } else {
+        doc.text("No se seleccionaron medidas correctivas.", 20, y);
+    }
+
+    doc.save("Informe_Oficial_UCM.pdf");
+    
+    const zip = new JSZip();
+    
+    let latexStr = `
+\\documentclass[a4paper,12pt]{article}
+\\usepackage[spanish]{babel}
+\\usepackage[utf8]{inputenc}
+\\usepackage{geometry}
+\\usepackage{fancyhdr}
+\\usepackage{graphicx}
+\\usepackage{booktabs}
+\\usepackage{xcolor}
+
+\\geometry{top=2.5cm, bottom=2.5cm, left=2.5cm, right=2.5cm}
+
+\\pagestyle{fancy}
+\\fancyhead[L]{Informe de Incidente UCM}
+\\fancyhead[R]{\\today}
+
+\\title{\\textbf{INFORME TÉCNICO POST-MORTEM}\\\\ INCIDENTE CIBERNÉTICO MATRÍCULA 2025}
+\\author{Centro de Mando de Ciberseguridad UCM}
+\\date{\\today}
+
+\\begin{document}
+
+\\maketitle
+\\thispagestyle{empty}
+\\tableofcontents
+\\newpage
+
+\\section{Resumen Ejecutivo}
+El presente documento detalla las actuaciones llevadas a cabo durante el incidente de denegación de servicio (DDoS) detectado durante el periodo crítico de matriculación.
+
+\\begin{itemize}
+    \\item \\textbf{Tipo de Incidente:} ${State.incidentType === 'volumetric_ddos' ? 'DDoS Volumétrico (UDP Flooding)' : 'Ataque Desconocido'}
+    \\item \\textbf{Estado Final del Servicio (SLA):} ${State.sla.toFixed(2)}\\%
+    \\item \\textbf{Impacto Reputacional:} ${State.satisfaction}/100
+\\end{itemize}
+
+\\section{Equipo de Respuesta (CSIRT-UCM)}
+Para la contención de la amenaza, se activaron los siguientes recursos humanos y roles estratégicos:
+\\begin{quote}
+${teamNames}
+\\end{quote}
+
+\\section{Análisis Económico}
+La operación ha supuesto un coste directo contra el presupuesto de emergencia del Vicerrectorado de Tecnología.
+
+\\begin{center}
+\\begin{tabular}{lr}
+\\toprule
+\\textbf{Concepto} & \\textbf{Valor (Créditos)} \\\\
+\\midrule
+Presupuesto Inicial & 2500 \\\\
+Coste de Operaciones & ${2500 - State.credits} \\\\
+\\textbf{Remanente} & \\textbf{${State.credits}} \\\\
+\\bottomrule
+\\end{tabular}
+\\end{center}
+
+\\section{Cronología de Eventos (Log)}
+A continuación se detallan las decisiones tomadas en tiempo real:
+
+\\begin{enumerate}
+${State.history.map(h => `    \\item \\textbf{[Fase ${h.act}]} ${h.msg}`).join('\n')}
+\\end{enumerate}
+
+\\section{Plan de Mejora y Recomendaciones}
+Tras el análisis forense, se ha aprobado la implementación de las siguientes medidas correctivas para evitar recurrencia:
+
+\\begin{itemize}
+${selectedImprovements.length > 0 ? selectedImprovements.map(i => `    \\item ${i}`).join('\n') : '    \\item No se han seleccionado medidas adicionales.'}
+\\end{itemize}
+
+\\section{Conclusión}
+${State.sla > 80 ? 'La gestión del incidente ha sido satisfactoria, manteniendo los niveles de servicio dentro de parámetros aceptables.' : 'El incidente ha impactado severamente la disponibilidad, requiriendo una revisión profunda de los protocolos de defensa.'}
+
+\\end{document}
+    `;
+
+    zip.file("informe_ucm.tex", latexStr);
+    zip.file("leeme.txt", "Este archivo contiene el código fuente LaTeX del informe para su compilación en Overleaf o editores locales.");
+    
+    const content = await zip.generateAsync({type:"blob"});
+    saveAs(content, "Pack_Documentacion_UCM.zip");
+}
+
+let canvas, ctx, nodes = [], particles = [];
+class Particle {
+    constructor() {
+        this.reset();
+    }
+    reset() {
+        this.path = Math.floor(Math.random() * 2);
+        this.progress = 0;
+        this.speed = 0.005 + Math.random() * 0.005;
+        this.isMalicious = Math.random() < (State.traffic.malicious / (State.traffic.normal + State.traffic.malicious + 1));
+        this.blocked = false;
+    }
+    update() {
+        if (this.blocked) return;
+        this.progress += this.speed;
+        
+        if (this.progress > 0.2 && this.progress < 0.3 && this.isMalicious && State.actions.includes('scrub')) {
+            if (Math.random() < 0.95) { this.blocked = true; return; }
+        }
+        if (this.progress > 0.4 && this.progress < 0.5 && this.isMalicious && State.actions.includes('waf')) {
+            if (Math.random() < 0.3) { this.blocked = true; return; }
+        }
+        
+        if (this.progress >= 1) this.reset();
+    }
+    draw() {
+        if (this.blocked) return;
+        let p1, p2, t;
+        if (this.progress < 0.2) { p1=nodes[0]; p2=nodes[1]; t=this.progress/0.2; }
+        else if (this.progress < 0.4) { p1=nodes[1]; p2=nodes[2]; t=(this.progress-0.2)/0.2; }
+        else if (this.progress < 0.6) { p1=nodes[2]; p2=nodes[3]; t=(this.progress-0.4)/0.2; }
+        else { 
+            p1=nodes[3]; 
+            p2=this.path===0 ? nodes[4] : nodes[5]; 
+            t=(this.progress-0.6)/0.4; 
+        }
+        
+        const x = p1.x + (p2.x - p1.x) * t;
+        const y = p1.y + (p2.y - p1.y) * t;
+        
+        ctx.fillStyle = this.isMalicious ? "#ff3b3b" : "#00ff88";
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, Math.PI*2);
+        ctx.fill();
+    }
+}
+
+function initTopology() {
+    canvas = document.getElementById('topology-canvas');
+    ctx = canvas.getContext('2d');
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    const w = canvas.width, h = canvas.height;
+    nodes = [
+        {x: w*0.1, y: h*0.5, label: "INTERNET", sub: ""},
+        {x: w*0.3, y: h*0.5, label: "ISP (RedIRIS)", sub: "Scrubbing"},
+        {x: w*0.5, y: h*0.5, label: "FIREWALL", sub: "WAF/Geo"},
+        {x: w*0.7, y: h*0.5, label: "LB", sub: "Balancer"},
+        {x: w*0.9, y: h*0.3, label: "WEB 1", sub: "Srv"},
+        {x: w*0.9, y: h*0.7, label: "WEB 2", sub: "Srv"}
+    ];
+    
+    for(let i=0; i<50; i++) particles.push(new Particle());
+    
+    requestAnimationFrame(drawTopology);
+}
+
+function resizeCanvas() { if(canvas){ canvas.width = canvas.parentElement.clientWidth; canvas.height = 250; } }
+
+function drawTopology() {
+    if(State.phase < 1 || State.phase > 3) return;
+    
+    ctx.fillStyle = "#151922";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    particles.forEach(p => { p.update(); p.draw(); });
+
+    ctx.lineWidth = 2; ctx.strokeStyle = "#333";
+    ctx.beginPath();
+    ctx.moveTo(nodes[0].x, nodes[0].y); ctx.lineTo(nodes[1].x, nodes[1].y);
+    ctx.lineTo(nodes[2].x, nodes[2].y); ctx.lineTo(nodes[3].x, nodes[3].y);
+    ctx.lineTo(nodes[4].x, nodes[4].y); ctx.moveTo(nodes[3].x, nodes[3].y); ctx.lineTo(nodes[5].x, nodes[5].y);
+    ctx.stroke();
+
+    nodes.forEach((n, i) => {
+        ctx.fillStyle = "#1f2833"; ctx.beginPath(); ctx.arc(n.x, n.y, 18, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = "#fff"; ctx.font = "10px Arial"; ctx.textAlign = "center"; 
+        ctx.fillText(n.label, n.x, n.y + 30);
+        
+        let metric = "";
+        if (i===0) metric = (State.traffic.malicious + State.traffic.normal).toFixed(0) + " Mbps";
+        if (i===2) metric = (State.traffic.mitigated).toFixed(0) + " Drop";
+        if (i===4 || i===5) metric = ((State.traffic.normal + State.traffic.malicious - State.traffic.mitigated)/2).toFixed(0) + " Load";
+        
+        ctx.fillStyle = "#66fcf1"; ctx.font = "9px monospace"; ctx.fillText(metric, n.x, n.y - 25);
+    });
+    
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillRect(10, 10, 200, 60);
+    ctx.fillStyle = "#00ff88";
+    ctx.textAlign = "left";
+    ctx.font = "10px monospace";
+    ctx.fillText("LIVE TRAFFIC MONITOR", 15, 25);
+    ctx.fillStyle = "#aaa";
+    ctx.fillText(`SRC: ${Math.floor(Math.random()*255)}.x.x.x`, 15, 40);
+    ctx.fillText(`PROTO: ${State.incidentType === 'volumetric_ddos' ? 'UDP (53)' : 'TCP (80)'}`, 15, 55);
+
+    requestAnimationFrame(drawTopology);
+}
+
+function initChart() {
+    const ctx = document.getElementById('traffic-chart').getContext('2d');
+    chart = new Chart(ctx, {
+        type: 'line',
+        data: { labels: Array(20).fill(''), datasets: [{ label: 'Mbps', data: Array(20).fill(0), borderColor: '#66fcf1', backgroundColor: 'rgba(102, 252, 241, 0.1)', fill: true }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false } }, animation: false }
+    });
+}
+function updateChart(val) { if(chart) { chart.data.datasets[0].data.push(val); chart.data.datasets[0].data.shift(); chart.update(); } }
+
+function log(msg, type) {
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+    const t = new Date().toLocaleTimeString().split(' ')[0];
+    let colorClass = '';
+    if(type==='ERR') colorClass = 'log-crit'; if(type==='OK') colorClass = 'log-ok'; if(type==='WARN') colorClass = 'log-warn';
+    div.innerHTML = `<span class="log-time">${t}</span> <span class="${colorClass}">${msg}</span>`;
+    document.getElementById('log-content').prepend(div);
+}
+
+function updateKPIs() {
+    document.getElementById('kpi-sla').innerText = State.sla.toFixed(1) + "%";
+    document.getElementById('kpi-sat').innerText = State.satisfaction;
+    document.getElementById('kpi-budget').innerText = State.credits;
+    const slaEl = document.getElementById('kpi-sla');
+    if(State.sla < 50) slaEl.style.color = 'var(--danger)'; else if(State.sla < 80) slaEl.style.color = 'var(--warning)'; else slaEl.style.color = 'var(--success)';
+}
+
+function closeModal() { document.getElementById('modal').style.display = 'none'; }
+function endGame() { alert("TIEMPO AGOTADO."); renderPhase4(); }
+</script>
+</body>
+</html>

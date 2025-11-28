@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DATA LEAK RESPONSE: CISO CENTER</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #050505;
+            --panel-bg: rgba(10, 20, 30, 0.95);
+            --text-color: #e0f7fa;
+            --accent-color: #00f3ff; /* Cyan */
+            --secondary-color: #ff9e00; /* Naranja */
+            --danger-color: #ff0055; /* Rojo */
+            --success-color: #00ff9d; /* Verde */
+            --grid-line: rgba(0, 243, 255, 0.15);
+            --border-color: #00f3ff;
+            
+            --font-main: 'Segoe UI', 'Roboto', Helvetica, Arial, sans-serif;
+            --font-mono: 'Consolas', 'Monaco', monospace;
+            
+            --shadow-glow: 0 0 15px rgba(0, 243, 255, 0.2);
+            --btn-radius: 4px;
+        }
+
+        [data-theme="pastel"] {
+            --bg-color: #f4f7f6;
+            --panel-bg: #ffffff;
+            --text-color: #2c3e50;
+            --accent-color: #3498db;
+            --secondary-color: #f39c12;
+            --danger-color: #e74c3c;
+            --success-color: #27ae60;
+            --grid-line: rgba(0, 0, 0, 0.03);
+            --border-color: #bdc3c7;
+            --shadow-glow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        [data-theme="grayscale"] {
+            --bg-color: #ffffff;
+            --panel-bg: #f0f0f0;
+            --text-color: #111111;
+            --accent-color: #333333;
+            --secondary-color: #555555;
+            --danger-color: #000000;
+            --success-color: #444444;
+            --grid-line: rgba(0, 0, 0, 0.1);
+            --border-color: #333333;
+            --shadow-glow: none;
+        }
+
+        body {
+            margin: 0; overflow: hidden;
+            background-color: var(--bg-color); color: var(--text-color);
+            font-family: var(--font-main); font-weight: 500;
+            display: flex; flex-direction: column; height: 100vh;
+            transition: all 0.4s ease;
+        }
+
+        /* GRID ANIMADO */
+        .retro-grid {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            perspective: 1000px; z-index: -1; overflow: hidden; pointer-events: none;
+        }
+        .grid-plane {
+            position: absolute; top: 0; left: -50%; width: 200%; height: 200%;
+            background-image: linear-gradient(transparent 95%, var(--grid-line) 95%), linear-gradient(90deg, transparent 95%, var(--grid-line) 95%);
+            background-size: 50px 50px;
+            transform: rotateX(60deg) translateY(-100px) translateZ(-200px);
+            animation: gridMove 20s linear infinite;
+            mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 40%);
+        }
+        @keyframes gridMove { 
+            0% { transform: rotateX(60deg) translateY(0) translateZ(-200px); } 
+            100% { transform: rotateX(60deg) translateY(50px) translateZ(-200px); } 
+        }
+
+        /* UI LAYOUT */
+        #top-bar {
+            height: 60px; display: flex; justify-content: space-between; align-items: center;
+            padding: 0 20px; background: var(--panel-bg); border-bottom: 2px solid var(--accent-color);
+            box-shadow: var(--shadow-glow); z-index: 20; backdrop-filter: blur(5px);
+        }
+        .logo-area { font-size: 1.2rem; font-weight: 900; letter-spacing: 1px; font-family: var(--font-mono); }
+        
+        .metric-group { display: flex; gap: 20px; }
+        .metric { display:flex; flex-direction:column; align-items:center; }
+        .metric label { font-size: 0.65rem; font-weight: bold; opacity: 0.8; text-transform: uppercase; }
+        .metric value { font-size: 1.1rem; font-weight: 800; font-family: var(--font-mono); }
+
+        #main-container { display: flex; flex: 1; overflow: hidden; padding: 10px; gap: 10px; position: relative; }
+
+        .panel {
+            background: var(--panel-bg); border: 1px solid var(--border-color);
+            border-radius: var(--btn-radius); box-shadow: var(--shadow-glow);
+            display: flex; flex-direction: column; overflow: hidden;
+            backdrop-filter: blur(3px); transition: all 0.4s;
+        }
+
+        #left-panel { width: 300px; flex-shrink: 0; padding: 15px; }
+        #center-panel { flex: 1; padding: 15px; position: relative; display: flex; flex-direction: column; }
+        #right-panel { width: 300px; flex-shrink: 0; padding: 15px; }
+
+        @media (max-width: 1200px) { #right-panel { display: none; } }
+        @media (max-width: 800px) { #left-panel { display: none; } }
+
+        .panel-header {
+            font-size: 0.9rem; font-weight: 700; color: var(--accent-color);
+            border-bottom: 2px solid var(--border-color); padding-bottom: 8px; margin-bottom: 10px;
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+
+        /* COMPONENTS */
+        .btn {
+            background: rgba(255,255,255,0.05); border: 1px solid var(--accent-color);
+            color: var(--text-color); padding: 10px 15px; cursor: pointer;
+            font-family: var(--font-main); font-weight: 600; text-transform: uppercase;
+            transition: all 0.2s; border-radius: var(--btn-radius); font-size: 0.85rem; width: 100%;
+        }
+        .btn:hover { background: var(--accent-color); color: var(--bg-color); box-shadow: 0 0 10px var(--accent-color); }
+        .btn-danger { border-color: var(--danger-color); color: var(--danger-color); }
+        .btn-danger:hover { background: var(--danger-color); color: #fff; }
+        .btn-success { border-color: var(--success-color); color: var(--success-color); }
+        .btn-success:hover { background: var(--success-color); color: #000; }
+
+        /* ACT 0: TEAM */
+        .profile-card {
+            border: 1px solid var(--border-color); padding: 8px; margin-bottom: 8px;
+            border-radius: 4px; cursor: pointer; background: rgba(255,255,255,0.02);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .profile-card:hover { background: rgba(0, 243, 255, 0.1); }
+        .profile-card.selected { background: var(--accent-color); color: var(--bg-color); }
+        
+        /* ACT 1: SIEM LOGS */
+        .log-table-container { flex: 1; overflow-y: auto; font-family: var(--font-mono); font-size: 0.8rem; }
+        .log-row { display: flex; padding: 5px; border-bottom: 1px solid rgba(255,255,255,0.1); cursor: pointer; transition: background 0.2s; }
+        .log-row:hover { background: rgba(255,255,255,0.1); }
+        .log-row.evidence { background: rgba(0, 255, 157, 0.15); border-left: 3px solid var(--success-color); }
+        .log-col-time { width: 80px; color: #888; }
+        .log-col-src { width: 120px; color: var(--accent-color); }
+        .log-col-msg { flex: 1; }
+
+        /* ACT 2: DECISION MATRIX - AUTO FIT LAYOUT */
+        .act2-layout {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            gap: 10px;
+        }
+        
+        .incident-detail-box {
+            background: rgba(255, 255, 255, 0.05);
+            border-left: 4px solid var(--danger-color);
+            padding: 15px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            overflow-y: auto;
+            flex: 1; 
+            min-height: 0;
+        }
+        .incident-title { font-weight: bold; color: var(--danger-color); text-transform: uppercase; margin-bottom: 5px; display: block; }
+
+        .decision-controls { 
+            display: flex; flex-direction: column; gap: 8px; 
+            flex-shrink: 0;
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+        }
+        .control-group { display: flex; justify-content: space-between; align-items: center; }
+        .control-label { font-size: 0.85rem; margin-right: 10px; flex: 1; }
+        select, input[type="range"] { 
+            background: #000; color: #fff; border: 1px solid #444; padding: 4px; 
+            font-size: 0.85rem; width: 150px;
+        }
+        
+        .risk-calculator {
+            flex-shrink: 0;
+            background: rgba(255,255,255,0.02); border: 1px solid var(--border-color);
+            border-radius: 6px; padding: 8px; text-align: center;
+        }
+        .calc-formula { font-family: var(--font-mono); font-size: 0.9rem; margin-bottom: 2px; color: var(--secondary-color); opacity: 0.8; }
+        .calc-result { font-size: 1.1rem; font-weight: bold; color: var(--text-color); }
+
+        .traffic-light { display: flex; gap: 15px; justify-content: center; flex-shrink: 0; margin: 5px 0; }
+        .light { width: 20px; height: 20px; border-radius: 50%; opacity: 0.3; border: 2px solid #fff; }
+        .light.active { opacity: 1; box-shadow: 0 0 15px currentColor; transform: scale(1.3); }
+        
+        .act2-actions { flex-shrink: 0; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+
+        /* ACT 3: REPORT */
+        .report-editor { display: flex; flex-direction: column; gap: 15px; height: 100%; overflow-y: auto; }
+        .report-section { border: 1px solid var(--border-color); padding: 15px; border-radius: 4px; }
+        .report-section h4 { margin: 0 0 10px 0; color: var(--secondary-color); }
+        .phrase-option { 
+            padding: 8px; margin-bottom: 5px; border: 1px dashed #444; cursor: pointer; font-size: 0.9rem;
+        }
+        .phrase-option:hover { background: rgba(255,255,255,0.05); }
+        .phrase-option.selected { border-color: var(--success-color); background: rgba(0, 255, 157, 0.1); }
+
+        /* MODAL */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); backdrop-filter: blur(5px);
+            display: none; justify-content: center; align-items: center; z-index: 100; padding: 20px;
+        }
+        .modal {
+            background: var(--panel-bg); border: 2px solid var(--accent-color);
+            width: 90%; max-width: 600px; padding: 30px;
+            box-shadow: var(--shadow-glow); border-radius: 8px;
+            max-height: 90vh; overflow-y: auto; color: var(--text-color);
+        }
+        .modal h2 { color: var(--accent-color); border-bottom: 1px solid var(--border-color); margin-top:0; padding-bottom:10px; }
+        .tut-box { border: 1px solid var(--secondary-color); background: rgba(255, 158, 0, 0.05); padding: 15px; margin: 15px 0; border-radius: 4px; }
+        .tut-list li { margin-bottom: 8px; }
+
+        .log-entry { font-size: 0.8rem; margin-bottom: 5px; font-family: var(--font-mono); border-bottom: 1px solid #333; }
+        .timer-box { font-size: 1.2rem; color: var(--secondary-color); font-weight: bold; border: 1px solid var(--secondary-color); padding: 5px 10px; font-family: var(--font-mono); }
+        
+        /* Estilos para Feedback Educativo */
+        .feedback-content { text-align: left; line-height: 1.6; }
+        .feedback-concept { font-weight: bold; color: var(--accent-color); margin-bottom: 5px; display: block; }
+        .feedback-why { margin-bottom: 15px; }
+
+        /* Glosario */
+        .glossary-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+        .glossary-item { font-size: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; }
+        .glossary-term { color: var(--accent-color); font-weight: bold; display: block; }
+        .glossary-def { opacity: 0.8; line-height: 1.3; }
+        
+        .act0-briefing {
+            font-size: 0.9rem; 
+            line-height: 1.6; 
+            color: var(--text-color);
+        }
+        .act0-briefing strong { color: var(--secondary-color); }
+
+    </style>
+</head>
+<body>
+
+<div class="retro-grid"><div class="grid-plane"></div></div>
+
+<div id="top-bar">
+    <div class="logo-area">LEAK<span style="color:var(--accent-color)">::</span>RESPONSE</div>
+    <div class="metric-group">
+        <div class="metric"><label>T. FUGA</label><value id="val-time-leak">00:00</value></div>
+        <div class="metric"><label>DATOS AFECTADOS</label><value id="val-data" style="color:var(--danger-color)">--</value></div>
+        <div class="metric"><label>GRAVEDAD</label><value id="val-sev">--</value></div>
+        <div class="metric"><label>ESTADO</label><value id="val-status" style="color:var(--secondary-color)">INICIO</value></div>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center;">
+        <div class="timer-box" id="global-timer">00:00</div>
+        <button class="btn" style="width:auto; padding:5px 10px;" onclick="window.sim.cycleTheme()" title="Cambiar Tema">🎨</button>
+        <button class="btn btn-danger" style="width:auto; padding:5px 10px;" onclick="window.sim.confirmReset()" title="Reiniciar">⏻</button>
+    </div>
+</div>
+
+<div id="main-container">
+    <!-- PANEL IZQUIERDO -->
+    <div id="left-panel" class="panel">
+        <div class="panel-header" id="left-header">RECURSOS</div>
+        <div id="left-content" style="flex:1; overflow-y:auto;">
+            <!-- Dynamic Content -->
+        </div>
+    </div>
+
+    <!-- PANEL CENTRAL -->
+    <div id="center-panel" class="panel">
+        <div class="panel-header" id="center-header">PANTALLA PRINCIPAL</div>
+        <div id="center-content" style="flex:1; overflow:hidden; display:flex; flex-direction:column;">
+            <!-- Dynamic Content -->
+        </div>
+    </div>
+
+    <!-- PANEL DERECHO -->
+    <div id="right-panel" class="panel">
+        <div class="panel-header">CONSOLA DE EVENTOS</div>
+        <div id="console-log" style="flex:1; overflow-y:auto; font-family:var(--font-mono); font-size:0.8rem;"></div>
+    </div>
+</div>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-overlay">
+    <div class="modal" id="modal-content"></div>
+</div>
+
+<!-- RESET CONFIRMATION MODAL -->
+<div class="modal-overlay" id="reset-overlay" style="display:none; z-index:200;">
+    <div class="modal" style="max-width:400px; text-align:center;">
+        <h2 style="color:var(--danger-color)">¿ABORTAR MISIÓN?</h2>
+        <p>Se borrará todo el progreso guardado. Esta acción es irreversible.</p>
+        <div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
+            <button class="btn" onclick="document.getElementById('reset-overlay').style.display='none'">CANCELAR</button>
+            <button class="btn btn-danger" onclick="window.sim.reset()">CONFIRMAR</button>
+        </div>
+    </div>
+</div>
+
+<script>
+class DataLeakSim {
+    constructor() {
+        this.defaultState = {
+            act: 0,
+            timeElapsed: 0, // In simulation minutes
+            team: [],
+            evidence: [],
+            decision: null,
+            reportData: {},
+            leakSize: 0,
+            theme: 'tron',
+            act1Seen: false,
+            act2Seen: false,
+            act3Seen: false
+        };
+        
+        this.state = this.loadState() || JSON.parse(JSON.stringify(this.defaultState));
+        this.timerInterval = null;
+        this.keyBuffer = '';
+        
+        // DATA - ROLES
+        this.profiles = [
+            { id: 'ciso', name: 'CISO (Líder)', role: 'Líder Estratégico', cost: 3, tech: 3, legal: 1, comms: 1, desc: 'Responsable de la estrategia de seguridad.' },
+            { id: 'dpo', name: 'DPO (Delegado Datos)', role: 'Legal/Cumplimiento', cost: 2, tech: 1, legal: 3, comms: 1, desc: 'Experto en RGPD y notificaciones legales.' },
+            { id: 'legal', name: 'Abogado Externo', role: 'Legal', cost: 3, tech: 0, legal: 3, comms: 0, desc: 'Defensa jurídica ante demandas.' },
+            { id: 'soc', name: 'Analista SOC', role: 'Técnico', cost: 2, tech: 3, legal: 0, comms: 0, desc: 'Investigación forense y análisis de logs.' },
+            { id: 'sysadmin', name: 'Jefe Sistemas', role: 'Técnico', cost: 2, tech: 2, legal: 0, comms: 0, desc: 'Acceso a servidores y backups.' },
+            { id: 'comms', name: 'Dir. Comunicación', role: 'Comms', cost: 2, tech: 0, legal: 1, comms: 3, desc: 'Gestión de prensa y reputación.' },
+            { id: 'business', name: 'Director Negocio', role: 'Negocio', cost: 1, tech: 1, legal: 1, comms: 1, desc: 'Evaluación de impacto en el negocio.' }
+        ];
+
+        // DATA - GLOSARIO ACTO 2
+        this.act2Glossary = [
+            { t: "RGPD", d: "Reglamento General de Protección de Datos. Ley europea que obliga a proteger datos personales." },
+            { t: "AEPD", d: "Agencia Española de Protección de Datos. Autoridad de control a la que se reportan brechas." },
+            { t: "Datos Sensibles", d: "Información crítica: Salud, ideología, biometría, origen étnico, etc. Requiere máxima protección." },
+            { t: "72 Horas", d: "Plazo máximo legal para notificar una brecha de seguridad a la Autoridad de Control." },
+            { t: "Derechos y Libertades", d: "El riesgo se mide por el daño que la fuga causa a las personas (robo identidad, fraude), no a la empresa." }
+        ];
+
+        this.logs = this.generateLogs();
+        this.reportPhrases = {
+            summary: [
+                "Incidente de exfiltración masiva de datos personales confirmado.", 
+                "Fuga menor de datos no sensibles sin impacto regulatorio.",
+                "Intento de acceso bloqueado perimetralmente sin éxito.",
+                "Ataque de Ransomware con cifrado de servidores críticos.",
+                "Caída de servicio por ataque de Denegación de Servicio (DDoS).",
+                "Falso positivo generado por pruebas internas de seguridad.",
+                "Pérdida de dispositivo móvil corporativo sin cifrar.",
+                "Acceso no autorizado a cuenta de correo de dirección.",
+                "Filtración de secretos comerciales por empleado desleal.",
+                "Compromiso de la cadena de suministro vía proveedor."
+            ],
+            cause: [
+                "Vulnerabilidad SQL Injection en servidor de BBDD heredado.", 
+                "Credenciales de VPN comprometidas por Phishing.",
+                "Empleado interno malintencionado con permisos excesivos.",
+                "Falta de parches de seguridad en sistema operativo.",
+                "Configuración incorrecta de permisos en cubo S3 público.",
+                "Contraseña débil adivinada por fuerza bruta.",
+                "Malware tipo Infostealer en equipo de usuario.",
+                "Ingeniería social telefónica al departamento de soporte.",
+                "Dispositivo USB infectado conectado a la red interna.",
+                "Intercepción de tráfico en red Wi-Fi pública no segura."
+            ],
+            action: [
+                "Cierre de puertos, aislamiento de BBDD y notificación a AEPD.", 
+                "Pago del rescate solicitado por los atacantes.",
+                "Ocultación del incidente para evitar daño reputacional.",
+                "Restauración de copias de seguridad y formateo.",
+                "Bloqueo de IPs atacantes en el Firewall perimetral.",
+                "Cambio masivo de contraseñas de todos los usuarios.",
+                "Despido disciplinario del empleado responsable.",
+                "Contratación de servicio de limpieza de reputación online.",
+                "Desconexión física de todos los cables de red.",
+                "Instalación de parches de emergencia en producción."
+            ]
+        };
+
+        // Aplicar tema
+        document.body.setAttribute('data-theme', this.state.theme);
+
+        this.init();
+        this.setupInput();
+    }
+
+    // --- CORE & UTILS ---
+    saveState() { localStorage.setItem('leakSimState', JSON.stringify(this.state)); }
+    loadState() { return JSON.parse(localStorage.getItem('leakSimState')); }
+    reset() { localStorage.removeItem('leakSimState'); location.reload(); }
+    confirmReset() { document.getElementById('reset-overlay').style.display = 'flex'; }
+
+    log(msg, type='INFO') {
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+        div.style.color = type === 'ERR' ? 'var(--danger-color)' : (type === 'OK' ? 'var(--success-color)' : 'var(--text-color)');
+        div.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        document.getElementById('console-log').prepend(div);
+    }
+
+    cycleTheme() {
+        const themes = ['tron', 'pastel', 'grayscale'];
+        let idx = themes.indexOf(this.state.theme);
+        this.state.theme = themes[(idx + 1) % themes.length];
+        document.body.setAttribute('data-theme', this.state.theme);
+        this.saveState();
+    }
+
+    startTimer() {
+        if(this.timerInterval) clearInterval(this.timerInterval);
+        this.timerInterval = setInterval(() => {
+            this.state.timeElapsed += 5; // 5 mins per tick
+            const h = Math.floor(this.state.timeElapsed / 60);
+            const m = this.state.timeElapsed % 60;
+            document.getElementById('val-time-leak').innerText = `${h}h ${m}m`;
+            document.getElementById('global-timer').innerText = new Date().toLocaleTimeString();
+            this.saveState();
+        }, 1000);
+    }
+
+    setupInput() {
+        window.addEventListener('keydown', (e) => {
+            this.keyBuffer += e.key;
+            if(this.keyBuffer.length > 10) this.keyBuffer = this.keyBuffer.slice(-10);
+            if(this.keyBuffer.endsWith('1411')) this.loadAct(1); 
+            if(this.keyBuffer.endsWith('1412')) this.loadAct(2); 
+            if(this.keyBuffer.endsWith('1413')) this.loadAct(3); 
+            if(this.keyBuffer.endsWith('1414')) this.generatePerfectReport();
+        });
+    }
+
+    showModal(title, content, onClose) {
+        const ol = document.getElementById('modal-overlay');
+        const ct = document.getElementById('modal-content');
+        ct.innerHTML = `<h2>${title}</h2>${content}`;
+        
+        if(!content.includes('onclick=')) {
+            const btn = document.createElement('button');
+            btn.className = 'btn';
+            btn.style.marginTop = '20px';
+            btn.innerText = "CERRAR";
+            btn.onclick = () => { ol.style.display = 'none'; if(onClose) onClose(); };
+            ct.appendChild(btn);
+        }
+        
+        ol.style.display = 'flex';
+    }
+
+    closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
+
+    // --- TUTORIALS ---
+    showIntroTutorial() {
+        this.showModal("SIMULACIÓN DE FUGA DE DATOS", `
+            <p>Bienvenido al Centro de Respuesta a Incidentes. Te enfrentas a una posible brecha de seguridad.</p>
+            <div class="tut-box">
+                <strong>TU MISIÓN:</strong>
+                <ul class="tut-list">
+                    <li><strong>ACTO 0:</strong> Formar un equipo competente.</li>
+                    <li><strong>ACTO 1:</strong> Detectar la fuga en los logs del sistema (SIEM).</li>
+                    <li><strong>ACTO 2:</strong> Evaluar el impacto y decidir a quién notificar (RGPD).</li>
+                    <li><strong>ACTO 3:</strong> Redactar el informe forense final.</li>
+                </ul>
+            </div>
+            <p>Para empezar, necesitamos que selecciones a los expertos que te ayudarán.</p>
+            <button class="btn" onclick="window.sim.closeModal()">COMENZAR: FORMAR EQUIPO</button>
+        `);
+    }
+
+    showAct1Tutorial() {
+        this.showModal("TUTORIAL ACTO 1: DETECCIÓN", `
+            <p>Has accedido a la consola SIEM. Aquí verás miles de eventos, pero solo unos pocos son relevantes.</p>
+            <div class="tut-box">
+                <strong>CÓMO JUGAR:</strong>
+                <ul>
+                    <li>Busca líneas rojas o sospechosas (ej: volúmenes grandes, IPs extrañas).</li>
+                    <li>Haz clic en una línea para abrir el <strong>ANALIZADOR</strong>.</li>
+                    <li>Lee la explicación y decide si <strong>MARCAR COMO EVIDENCIA</strong>.</li>
+                    <li>Necesitas al menos 3 evidencias clave.</li>
+                </ul>
+            </div>
+            <button class="btn" onclick="window.sim.closeModal()">ABRIR CONSOLA SIEM</button>
+        `);
+    }
+
+    showAct2Tutorial() {
+        this.showModal("TUTORIAL ACTO 2: CLASIFICACIÓN Y NOTIFICACIÓN", `
+            <p>Fuga confirmada. Entramos en la fase de <strong>GESTIÓN DE INCIDENTES Y LEGALIDAD</strong>.</p>
+            <div class="tut-box">
+                <p>Esto no es solo un semáforo de riesgo. Es una decisión estratégica y legal crítica dentro del ciclo de vida del incidente.</p>
+                <strong>PASOS CLAVE:</strong>
+                <ul>
+                    <li><strong>1. Análisis Forense:</strong> Revisa el DETALLE DEL INCIDENTE para entender qué se ha perdido.</li>
+                    <li><strong>2. Evaluación de Impacto:</strong> Configura los selectores (Volumen, Sensibilidad) para calcular el riesgo real para los derechos de las personas.</li>
+                    <li><strong>3. Decisión de Notificación:</strong> Bajo el RGPD, si el riesgo es ALTO, estás OBLIGADO a notificar a la Autoridad y a los Afectados en 72h.</li>
+                </ul>
+            </div>
+            <button class="btn" onclick="window.sim.closeModal()">EVALUAR INCIDENTE</button>
+        `);
+    }
+    
+    showAct3Tutorial() {
+        this.showModal("TUTORIAL ACTO 3: INFORME", `
+            <p>La crisis está contenida. Toca el papeleo.</p>
+            <p>Selecciona las frases que mejor describan lo ocurrido para generar el PDF final.</p>
+            <button class="btn" onclick="window.sim.closeModal()">REDACTAR</button>
+        `);
+    }
+
+    // --- ACT 0: TEAM SELECTION ---
+    init() {
+        this.startTimer();
+        if(this.state.act === 0 && this.state.team.length === 0) {
+            this.loadAct(0);
+            this.showIntroTutorial();
+        } else {
+            this.loadAct(this.state.act);
+        }
+    }
+
+    loadAct(act) {
+        this.state.act = act;
+        this.saveState();
+        const left = document.getElementById('left-content');
+        const center = document.getElementById('center-content');
+        
+        left.innerHTML = ''; center.innerHTML = '';
+
+        if(act === 0) this.renderAct0(left, center);
+        if(act === 1) { this.renderAct1(left, center); if(!this.state.act1Seen) { this.showAct1Tutorial(); this.state.act1Seen=true; } }
+        if(act === 2) { this.renderAct2(left, center); if(!this.state.act2Seen) { this.showAct2Tutorial(); this.state.act2Seen=true; } }
+        if(act === 3) { this.renderAct3(left, center); if(!this.state.act3Seen) { this.showAct3Tutorial(); this.state.act3Seen=true; } }
+
+        this.updateHeaderKPIs();
+    }
+
+    renderAct0(left, center) {
+        document.getElementById('center-header').innerText = "ACTO 0: COMITÉ DE CRISIS";
+        
+        // Set Left Panel Content: Mission Briefing
+        left.innerHTML = `
+            <div class="act0-briefing">
+                <strong style="color:var(--accent-color); font-size:1.1rem; border-bottom:1px solid var(--border-color); display:block; margin-bottom:10px;">INFORME DE INTELIGENCIA #001</strong>
+                <p><strong>PRIORIDAD:</strong> CRÍTICA</p>
+                <p><strong>ORIGEN:</strong> Alerta SIEM Automática</p>
+                <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin:10px 0;">
+                <p><strong>SITUACIÓN:</strong></p>
+                <p>Se ha detectado una transferencia anómala y masiva de datos cifrados (aprox. 500MB) desde los servidores de Finanzas hacia una IP desconocida en Europa del Este.</p>
+                <p><strong>RIESGO POTENCIAL:</strong></p>
+                <ul style="padding-left:20px; margin-top:5px;">
+                    <li>Exfiltración de datos personales (RGPD).</li>
+                    <li>Sanciones multimillonarias.</li>
+                    <li>Daño reputacional irreversible.</li>
+                </ul>
+                <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin:10px 0;">
+                <p><strong>ORDEN:</strong></p>
+                <p>Active un Comité de Crisis con capacidades para:</p>
+                <ol style="padding-left:20px; margin-top:5px;">
+                    <li>Investigar el origen técnico (Técnico).</li>
+                    <li>Gestionar la legalidad y multas (Legal).</li>
+                    <li>Contener el pánico público (Comms).</li>
+                </ol>
+            </div>
+        `;
+
+        const intro = document.createElement('div');
+        intro.innerHTML = `
+            <div style="background:rgba(255,255,255,0.05); padding:15px; margin-bottom:15px;">
+                <strong>SELECCIÓN DE PERSONAL:</strong>
+                <p style="font-size:0.9rem;">Basado en el informe de inteligencia (izquierda), selecciona hasta 4 perfiles clave.</p>
+            </div>
+        `;
+        center.appendChild(intro);
+
+        this.profiles.forEach(p => {
+            const card = document.createElement('div');
+            card.className = `profile-card ${this.state.team.includes(p.id) ? 'selected' : ''}`;
+            card.innerHTML = `
+                <div>
+                    <strong>${p.name}</strong> <span style="opacity:0.7; font-size:0.8rem">(${p.role})</span><br>
+                    <small style="opacity:0.6">${p.desc}</small>
+                </div>
+                <div style="font-family:monospace; font-weight:bold;">T:${p.tech} L:${p.legal} C:${p.comms}</div>
+            `;
+            card.onclick = () => {
+                if(this.state.team.includes(p.id)) this.state.team = this.state.team.filter(id => id !== p.id);
+                else if(this.state.team.length < 4) this.state.team.push(p.id);
+                this.loadAct(0);
+            };
+            center.appendChild(card);
+        });
+
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-success';
+        btn.innerText = "CONFIRMAR EQUIPO";
+        btn.style.marginTop = '20px';
+        btn.onclick = () => this.validateTeam();
+        center.appendChild(btn);
+    }
+
+    validateTeam() {
+        let t=0, l=0, c=0;
+        this.state.team.forEach(id => {
+            const p = this.profiles.find(x => x.id === id);
+            t += p.tech; l += p.legal; c += p.comms;
+        });
+
+        let missing = [];
+        if(t < 2) missing.push("Técnico (Investigación)");
+        if(l < 2) missing.push("Legal (Normativa)");
+        if(c < 1) missing.push("Comunicación");
+
+        if(missing.length > 0) {
+            this.showModal("EQUIPO DESEQUILIBRADO", `
+                <p style="color:var(--danger-color)">Tu comité tiene carencias graves para esta misión:</p>
+                <ul>${missing.map(m => `<li>Falta capacidad: ${m}</li>`).join('')}</ul>
+                <p>Revisa el Informe de Inteligencia. Necesitas investigar (Tech), cumplir la ley (Legal) y hablar (Comms).</p>
+                <button class="btn" onclick="window.sim.closeModal()">VOLVER A ELEGIR</button>
+            `);
+        } else {
+            this.log("Equipo constituido correctamente.", "OK");
+            this.loadAct(1);
+        }
+    }
+
+    // --- ACT 1: DETECTION (SIEM) ---
+    generateLogs() {
+        const logs = [];
+        const actions = ["LOGIN_SUCCESS", "FILE_ACCESS", "DB_QUERY", "VPN_CONNECT", "DATA_OUTBOUND"];
+        const ips = ["192.168.1.10", "192.168.1.55", "10.0.0.5", "84.20.11.2 (Malicious)"];
+        
+        for(let i=0; i<30; i++) {
+            const isBad = i > 20; // Last ones are malicious
+            logs.push({
+                id: i,
+                time: `10:${10+i}:00`,
+                src: isBad ? "192.168.1.200 (DB_ADMIN)" : ips[Math.floor(Math.random()*ips.length)],
+                action: isBad ? "DATA_OUTBOUND (ENCRYPTED)" : actions[Math.floor(Math.random()*actions.length)],
+                dest: isBad ? "45.x.x.x (Ukraine)" : "Internal_Srv",
+                size: isBad ? "500MB" : "2KB",
+                malicious: isBad
+            });
+        }
+        return logs;
+    }
+    
+    analyzeLog(log) {
+        let def = "", meaning = "";
+        if(log.action.includes("DATA_OUTBOUND")) {
+            def = "Tráfico de red saliente hacia un destino externo.";
+            if(log.size.includes("MB")) meaning = "ALERTA: Volumen alto de datos saliendo de la red. Posible exfiltración masiva.";
+            else meaning = "Tráfico residual, probablemente inofensivo si es pequeño.";
+        } else if(log.action === "LOGIN_SUCCESS") {
+            def = "Un usuario se ha autenticado correctamente.";
+            meaning = "Normal si es en horario laboral. Sospechoso si es de madrugada o desde IP extraña.";
+        } else if(log.action === "FILE_ACCESS") {
+            def = "Lectura o apertura de archivos en el servidor.";
+            meaning = "Indica actividad de usuario. Si es masiva, puede ser un copiado de datos previo al robo.";
+        } else if(log.action === "DB_QUERY") {
+            def = "Consulta a la base de datos para obtener información.";
+            meaning = "Esencial para el funcionamiento de la app, pero sospechoso si devuelve millones de registros de golpe.";
+        } else if(log.action === "VPN_CONNECT") {
+            def = "Conexión remota segura a la red de la empresa.";
+            meaning = "Permite trabajar desde casa. Verificar si la IP de origen coincide con la ubicación del empleado.";
+        }
+        return {def, meaning};
+    }
+
+    renderAct1(left, center) {
+        document.getElementById('center-header').innerText = "ACTO 1: ANÁLISIS SIEM";
+        document.getElementById('val-status').innerText = "EN ANÁLISIS";
+
+        left.innerHTML = `
+            <div style="background:rgba(255,255,255,0.05); padding:10px; border-radius:4px;">
+                <strong style="color:var(--secondary-color)">ALERTA DLP #9921</strong>
+                <p style="font-size:0.9rem">Salida masiva de datos detectada. Busca conexiones salientes de gran tamaño o IPs extrañas.</p>
+            </div>
+            <div id="evidence-list" style="margin-top:20px;">
+                <small>EVIDENCIAS MARCADAS:</small>
+                <ul style="padding-left:20px; font-size:0.8rem; color:var(--accent-color)"></ul>
+            </div>
+        `;
+
+        const tableDiv = document.createElement('div');
+        tableDiv.className = 'log-table-container';
+        
+        this.logs.forEach(l => {
+            const row = document.createElement('div');
+            const isSelected = this.state.evidence.includes(l.id);
+            row.className = `log-row ${isSelected ? 'evidence' : ''}`;
+            row.innerHTML = `
+                <div class="log-col-time">${l.time}</div>
+                <div class="log-col-src">${l.src}</div>
+                <div class="log-col-msg">Action: ${l.action} | Dest: ${l.dest} | Size: ${l.size}</div>
+            `;
+            row.onclick = () => this.showLogDetails(l);
+            tableDiv.appendChild(row);
+        });
+        center.appendChild(tableDiv);
+
+        const ul = document.querySelector('#evidence-list ul');
+        this.state.evidence.forEach(id => {
+            const li = document.createElement('li');
+            li.innerText = `Log ID ${id}`;
+            ul.appendChild(li);
+        });
+
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.innerText = "CONFIRMAR ANÁLISIS DE FUGA";
+        btn.style.marginTop = '10px';
+        btn.onclick = () => this.validateAct1();
+        center.appendChild(btn);
+    }
+    
+    showLogDetails(log) {
+        const analysis = this.analyzeLog(log);
+        const isMarked = this.state.evidence.includes(log.id);
+        
+        const content = `
+            <div style="text-align:left; margin-bottom:20px;">
+                <div style="background:rgba(255,255,255,0.05); padding:10px; margin-bottom:10px; border-left:3px solid var(--accent-color);">
+                    <strong>EVENTO ID:</strong> ${log.id}<br>
+                    <strong>ORIGEN:</strong> ${log.src}<br>
+                    <strong>ACCIÓN:</strong> ${log.action}<br>
+                    <strong>TAMAÑO:</strong> ${log.size}
+                </div>
+                
+                <h4 style="color:var(--secondary-color); margin-bottom:5px;">¿QUÉ ES ESTO?</h4>
+                <p style="font-size:0.9rem; margin-bottom:15px;">${analysis.def}</p>
+                
+                <h4 style="color:var(--secondary-color); margin-bottom:5px;">IMPLICACIÓN</h4>
+                <p style="font-size:0.9rem;">${analysis.meaning}</p>
+            </div>
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button class="btn" style="width:auto;" onclick="window.sim.closeModal()">CERRAR</button>
+                <button class="btn ${isMarked ? 'btn-danger' : 'btn-success'}" style="width:auto;" onclick="window.sim.toggleEvidence(${log.id})">
+                    ${isMarked ? 'DESMARCAR' : 'MARCAR COMO EVIDENCIA'} 👁️
+                </button>
+            </div>
+        `;
+        
+        this.showModal("DETALLE DEL EVENTO SIEM", content);
+    }
+    
+    toggleEvidence(id) {
+        if(this.state.evidence.includes(id)) {
+            this.state.evidence = this.state.evidence.filter(e => e !== id);
+        } else {
+            this.state.evidence.push(id);
+        }
+        this.saveState();
+        this.closeModal();
+        // Refresh Act 1
+        const left = document.getElementById('left-content');
+        const center = document.getElementById('center-content');
+        left.innerHTML = ''; center.innerHTML = '';
+        this.renderAct1(left, center);
+    }
+
+    validateAct1() {
+        const maliciousLogs = this.logs.filter(l => l.malicious).map(l => l.id);
+        const found = this.state.evidence.filter(id => maliciousLogs.includes(id)).length;
+        const noise = this.state.evidence.length - found;
+
+        if(found >= 3 && noise < 2) {
+            this.state.leakSize = 50000; 
+            this.log("Fuga confirmada. Exfiltración de BBDD detectada.", "OK");
+            this.showModal("ANÁLISIS CORRECTO", 
+                "<p>Has aislado los logs que demuestran la exfiltración de 500MB a una IP externa.</p><p>Pasamos a la fase de Evaluación de Impacto.</p>",
+                () => this.loadAct(2)
+            );
+        } else {
+            this.log("Análisis incorrecto.", "ERR");
+            this.showModal("ANÁLISIS FALLIDO", 
+                "<p>No has marcado las evidencias correctas o has marcado demasiado ruido (falsos positivos).</p><p>Busca 'DATA_OUTBOUND' con tamaño '500MB'.</p>",
+                () => this.closeModal()
+            );
+        }
+    }
+
+    // --- ACT 2: DECISION (RGPD) ---
+    renderAct2(left, center) {
+        document.getElementById('center-header').innerText = "ACTO 2: GESTIÓN DE INCIDENTES";
+        document.getElementById('val-status').innerText = "EVALUANDO";
+        document.getElementById('val-data').innerText = "50.000 REG";
+
+        // RENDERIZADO DEL GLOSARIO EN EL PANEL IZQUIERDO
+        left.innerHTML = `
+            <div style="padding:10px; font-size:0.9rem;">
+                <strong style="color:var(--accent-color)">AYUDA Y DEFINICIONES</strong>
+                <p style="margin-bottom:15px;">Conceptos clave para la toma de decisiones:</p>
+                
+                <div class="glossary-list">
+                    ${this.act2Glossary.map(item => `
+                        <div class="glossary-item">
+                            <span class="glossary-term">${item.t}</span>
+                            <span class="glossary-def">${item.d}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        
+        // Detailed Incident Description (Added per request)
+        const incidentDetail = `
+            <div class="incident-detail-box">
+                <span class="incident-title">DETALLE DEL INCIDENTE FORENSE:</span>
+                <p>Se ha confirmado la exfiltración no autorizada de la tabla "USUARIOS_VIP_2024" de la base de datos principal. El archivo comprimido (500MB) contiene:</p>
+                <ul style="margin-top:5px; padding-left:20px;">
+                    <li>Nombres completos y Direcciones.</li>
+                    <li>Números de DNI/Pasaporte.</li>
+                    <li>Historial de compras y datos bancarios (IBAN) parcialmente ofuscados.</li>
+                    <li>Diagnósticos médicos asociados (en el caso de seguros de salud).</li>
+                </ul>
+                <p style="margin-top:10px;"><strong>Volumen estimado:</strong> 50.000 registros de personas físicas.</p>
+                <p><strong>Estado actual:</strong> La vulnerabilidad SQL ha sido parcheada, pero los datos ya están fuera.</p>
+            </div>
+        `;
+
+        center.innerHTML = `
+            <div class="act2-layout">
+                ${incidentDetail}
+                <div class="decision-controls">
+                    <div class="control-group">
+                        <span class="control-label">Volumen de Datos</span>
+                        <select id="inp-vol" onchange="window.sim.updateTrafficLight()">
+                            <option value="1">Bajo (<100)</option>
+                            <option value="2">Medio (100 - 1000)</option>
+                            <option value="3">Alto (>10.000)</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <span class="control-label">Sensibilidad (Salud/Ideología/Financiero)</span>
+                        <select id="inp-sens" onchange="window.sim.updateTrafficLight()">
+                            <option value="1">Baja (Datos básicos)</option>
+                            <option value="2">Media (Financieros)</option>
+                            <option value="3">Alta (Salud/Biométricos/Ideología)</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <span class="control-label">Contexto (Vulnerabilidad de los afectados)</span>
+                        <input type="range" min="1" max="3" value="1" id="inp-risk" oninput="window.sim.updateTrafficLight()">
+                        <div style="display:flex; justify-content:space-between; font-size:0.7rem; opacity:0.7;"><span>Bajo</span><span>Medio</span><span>Alto</span></div>
+                    </div>
+                </div>
+                
+                <div class="risk-calculator">
+                    <div class="calc-formula">Riesgo = (Volumen + Sensibilidad + Contexto)</div>
+                    <div class="calc-result" id="calc-res">CALCULANDO...</div>
+                </div>
+
+                <div class="traffic-light">
+                    <div class="light" id="l-green" style="background:green"></div>
+                    <div class="light" id="l-yellow" style="background:orange"></div>
+                    <div class="light" id="l-red" style="background:red"></div>
+                </div>
+                <div class="act2-actions">
+                    <button class="btn" onclick="window.sim.submitDecision('internal')">SOLO INTERNO</button>
+                    <button class="btn" onclick="window.sim.submitDecision('authority')">AUTORIDAD (AEPD)</button>
+                    <button class="btn" onclick="window.sim.submitDecision('affected')">AUTORIDAD + AFECTADOS</button>
+                    <button class="btn btn-danger" onclick="window.sim.submitDecision('public')">PÚBLICO (+PRENSA)</button>
+                </div>
+            </div>
+        `;
+        this.updateTrafficLight();
+    }
+
+    updateTrafficLight() {
+        const vol = parseInt(document.getElementById('inp-vol').value);
+        const sens = parseInt(document.getElementById('inp-sens').value);
+        const risk = parseInt(document.getElementById('inp-risk').value);
+        
+        const score = vol + sens + risk;
+        const scoreText = score + "/9";
+        
+        document.querySelectorAll('.light').forEach(l => l.classList.remove('active'));
+        
+        let riskLabel = "BAJO";
+        if(score < 4) {
+            document.getElementById('l-green').classList.add('active');
+        } else if(score < 7) {
+            document.getElementById('l-yellow').classList.add('active');
+            riskLabel = "MEDIO-ALTO";
+        } else {
+            document.getElementById('l-red').classList.add('active');
+            riskLabel = "CRÍTICO";
+        }
+        
+        document.getElementById('calc-res').innerHTML = `[${vol}] + [${sens}] + [${risk}] = ${scoreText} (${riskLabel})`;
+    }
+
+    submitDecision(type) {
+        if(type === 'affected') {
+            this.log("Decisión registrada: Notificación completa.", "OK");
+            this.state.decision = "Notificación a Autoridad y Afectados";
+            this.showModal("DECISIÓN CORRECTA", 
+                "<p>Has evaluado correctamente el riesgo. Al ser datos masivos y sensibles, la probabilidad de daño a los usuarios es alta, por lo que el RGPD obliga a notificarles.</p>",
+                () => this.loadAct(3)
+            );
+        } else {
+            this.log("Evaluación incorrecta. Riesgo subestimado.", "ERR");
+            this.showModal("DECISIÓN INCORRECTA", 
+                "<p>Has subestimado el riesgo. Con 50.000 registros de datos sensibles, la ley obliga a notificar también a los afectados, no solo a la autoridad.</p>",
+                () => this.closeModal()
+            );
+        }
+    }
+
+    // --- ACT 3: REPORT ---
+    renderAct3(left, center) {
+        document.getElementById('center-header').innerText = "ACTO 3: INFORME FINAL Y CIERRE";
+        document.getElementById('val-status').innerText = "REDACCIÓN";
+
+        // Left Panel: Context Recapitulation
+        left.innerHTML = `
+            <div class="act0-briefing">
+                <strong style="color:var(--accent-color); border-bottom:1px solid var(--border-color); display:block; margin-bottom:10px;">RESUMEN DEL INCIDENTE</strong>
+                <p>Use esta información para seleccionar las frases correctas en el informe.</p>
+                
+                <div style="background:rgba(255,255,255,0.05); padding:10px; margin-bottom:10px; border-radius:4px;">
+                    <strong style="color:var(--secondary-color)">1. HALLAZGOS TÉCNICOS (ACTO 1)</strong>
+                    <ul style="padding-left:15px; margin-top:5px; font-size:0.85rem;">
+                        <li>Tráfico saliente anómalo detectado (500MB).</li>
+                        <li>Origen: Servidor de Base de Datos.</li>
+                        <li>Destino: IP Externa desconocida.</li>
+                        <li>Patrón: Exfiltración de datos cifrados.</li>
+                    </ul>
+                </div>
+
+                <div style="background:rgba(255,255,255,0.05); padding:10px; margin-bottom:10px; border-radius:4px;">
+                    <strong style="color:var(--secondary-color)">2. IMPACTO Y LEGAL (ACTO 2)</strong>
+                    <ul style="padding-left:15px; margin-top:5px; font-size:0.85rem;">
+                        <li>Volumen: ~50.000 Registros.</li>
+                        <li>Tipo: Datos Personales y Sensibles.</li>
+                        <li>Riesgo: Alto para derechos y libertades.</li>
+                        <li>Acción: Notificación a Autoridad y Afectados.</li>
+                    </ul>
+                </div>
+                
+                <div style="font-size:0.8rem; opacity:0.7;">
+                    <em>El informe debe reflejar la verdad técnica y la decisión de cumplimiento normativo.</em>
+                </div>
+            </div>
+        `;
+
+        // Center Panel: Extended Report Editor
+        center.innerHTML = `
+            <div class="report-editor">
+                <p style="margin-bottom:15px;">Seleccione la frase más precisa para cada sección del informe oficial:</p>
+                
+                <div class="report-section" id="sec-summary">
+                    <h4>1. Resumen Ejecutivo</h4>
+                    ${this.renderPhrases('summary')}
+                </div>
+                <div class="report-section" id="sec-cause">
+                    <h4>2. Causa Raíz Probable</h4>
+                    ${this.renderPhrases('cause')}
+                </div>
+                <div class="report-section" id="sec-action">
+                    <h4>3. Medidas de Contención y Respuesta</h4>
+                    ${this.renderPhrases('action')}
+                </div>
+            </div>
+            <button class="btn btn-success" style="margin-top:10px;" onclick="window.sim.generatePDF()">FIRMAR Y GENERAR PDF</button>
+        `;
+    }
+
+    renderPhrases(key) {
+        return this.reportPhrases[key].map(p => `
+            <div class="phrase-option" onclick="this.classList.toggle('selected')">${p}</div>
+        `).join('');
+    }
+
+    // --- PDF GENERATION ---
+    generatePDF() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        const summary = Array.from(document.querySelectorAll('#sec-summary .selected')).map(e=>e.innerText).join(' ');
+        const cause = Array.from(document.querySelectorAll('#sec-cause .selected')).map(e=>e.innerText).join(' ');
+        const action = Array.from(document.querySelectorAll('#sec-action .selected')).map(e=>e.innerText).join(' ');
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(22);
+        doc.setTextColor(200, 0, 0);
+        doc.text("INFORME DE NOTIFICACIÓN DE BRECHA DE DATOS", 20, 20);
+        
+        doc.setFontSize(12);
+        doc.setTextColor(0);
+        doc.text(`FECHA: ${new Date().toLocaleString()}`, 20, 35);
+        doc.text(`NIVEL DE RIESGO: ALTO`, 20, 42);
+        doc.text(`REGISTROS AFECTADOS: ${this.state.leakSize}`, 20, 49);
+        doc.text(`DECISIÓN TOMADA: ${this.state.decision}`, 20, 56);
+
+        doc.line(20, 60, 190, 60);
+        
+        doc.setFontSize(14);
+        doc.text("1. RESUMEN", 20, 70);
+        doc.setFontSize(10);
+        doc.text(summary || "No especificado.", 20, 77, {maxWidth: 170});
+
+        doc.setFontSize(14);
+        doc.text("2. CAUSA TÉCNICA", 20, 100);
+        doc.setFontSize(10);
+        doc.text(cause || "En investigación.", 20, 107, {maxWidth: 170});
+
+        doc.setFontSize(14);
+        doc.text("3. MEDIDAS TOMADAS", 20, 130);
+        doc.setFontSize(10);
+        doc.text(action || "Pendiente.", 20, 137, {maxWidth: 170});
+
+        doc.setFontSize(14);
+        doc.text("ANEXO: EVIDENCIAS TÉCNICAS", 20, 160);
+        let y = 170;
+        this.state.evidence.forEach(id => {
+            doc.text(`- Log ID ${id} (Exfiltración confirmada)`, 20, y);
+            y += 7;
+        });
+
+        doc.save("INFORME_FUGA_DATOS.pdf");
+        this.log("Informe generado y descargado.", "OK");
+        setTimeout(() => alert("Simulación completada. Gracias."), 500);
+    }
+    
+    generatePerfectReport() {
+        this.state.leakSize = 50000;
+        this.state.decision = "Notificación a Autoridad y Afectados";
+        this.state.evidence = [25, 26, 27, 28];
+        
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        doc.text("INFORME PERFECTO (GENERADO POR CÓDIGO 1414)", 20, 20);
+        doc.save("INFORME_PERFECTO.pdf");
+    }
+
+    updateHeaderKPIs() {
+        const sev = this.state.act > 1 ? "ALTA (85/100)" : "--";
+        document.getElementById('val-sev').innerText = sev;
+        if(this.state.leakSize > 0) document.getElementById('val-data').innerText = this.state.leakSize;
+    }
+}
+
+window.sim = new DataLeakSim();
+</script>
+</body>
+</html>

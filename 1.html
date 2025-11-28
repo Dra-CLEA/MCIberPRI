@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRISIS PROTOCOL: WAR ROOM</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #050505;
+            --panel-bg: rgba(10, 20, 30, 0.95);
+            --text-color: #e0f7fa;
+            --accent-color: #00f3ff;
+            --secondary-color: #ff9e00;
+            --danger-color: #ff0055;
+            --success-color: #00ff9d;
+            --grid-line: rgba(0, 243, 255, 0.15);
+            --border-color: #00f3ff;
+            
+            --font-main: 'Segoe UI', 'Roboto', Helvetica, Arial, sans-serif;
+            --font-mono: 'Consolas', 'Monaco', monospace;
+            
+            --shadow-glow: 0 0 15px rgba(0, 243, 255, 0.2);
+            --btn-radius: 4px;
+            --grid-opacity: 1;
+        }
+
+        [data-theme="pastel"] {
+            --bg-color: #f4f7f6;
+            --panel-bg: #ffffff;
+            --text-color: #2c3e50;
+            --accent-color: #3498db;
+            --secondary-color: #f39c12;
+            --danger-color: #e74c3c;
+            --success-color: #27ae60;
+            --grid-line: rgba(0, 0, 0, 0.05);
+            --border-color: #bdc3c7;
+            --shadow-glow: 0 4px 6px rgba(0,0,0,0.1);
+            --grid-opacity: 0.4;
+        }
+
+        [data-theme="grayscale"] {
+            --bg-color: #ffffff;
+            --panel-bg: #f0f0f0;
+            --text-color: #111111;
+            --accent-color: #333333;
+            --secondary-color: #555555;
+            --danger-color: #000000;
+            --success-color: #444444;
+            --grid-line: rgba(0, 0, 0, 0.08);
+            --border-color: #333333;
+            --shadow-glow: none;
+            --grid-opacity: 0.3;
+        }
+
+        body {
+            margin: 0; overflow: hidden;
+            background-color: var(--bg-color); color: var(--text-color);
+            font-family: var(--font-main); font-weight: 500;
+            display: flex; flex-direction: column; height: 100vh;
+            transition: all 0.4s ease;
+        }
+
+        .retro-grid {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            perspective: 1000px; z-index: -1; overflow: hidden;
+            pointer-events: none;
+            opacity: var(--grid-opacity);
+            transition: opacity 0.5s ease;
+        }
+        .grid-plane {
+            position: absolute; top: 0; left: -50%; width: 200%; height: 200%;
+            background-image: linear-gradient(transparent 95%, var(--grid-line) 95%), linear-gradient(90deg, transparent 95%, var(--grid-line) 95%);
+            background-size: 50px 50px;
+            transform: rotateX(60deg) translateY(-100px) translateZ(-200px);
+            animation: gridMove 20s linear infinite;
+            mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 40%);
+        }
+        @keyframes gridMove { 
+            0% { transform: rotateX(60deg) translateY(0) translateZ(-200px); } 
+            100% { transform: rotateX(60deg) translateY(50px) translateZ(-200px); } 
+        }
+
+        #top-bar {
+            height: 60px; display: flex; justify-content: space-between; align-items: center;
+            padding: 0 20px; background: var(--panel-bg); border-bottom: 2px solid var(--accent-color);
+            box-shadow: var(--shadow-glow); z-index: 20; backdrop-filter: blur(5px);
+        }
+        .logo-area { font-size: 1.2rem; font-weight: 900; letter-spacing: 1px; font-family: var(--font-mono); }
+        
+        .metric-group { display: flex; gap: 15px; }
+        .metric { display:flex; flex-direction:column; align-items:center; }
+        .metric label { font-size: 0.65rem; font-weight: bold; opacity: 0.8; text-transform: uppercase; }
+        .metric value { font-size: 1.1rem; font-weight: 800; font-family: var(--font-mono); }
+
+        .timer-box {
+            font-size: 1.2rem; color: var(--secondary-color); font-weight: 800;
+            font-family: var(--font-mono); border: 2px solid var(--secondary-color);
+            padding: 4px 10px; border-radius: var(--btn-radius);
+        }
+
+        #main-container { display: flex; flex: 1; overflow: hidden; padding: 10px; gap: 10px; position: relative; }
+
+        .panel {
+            background: var(--panel-bg); border: 1px solid var(--border-color);
+            border-radius: var(--btn-radius); box-shadow: var(--shadow-glow);
+            display: flex; flex-direction: column; overflow: hidden;
+            backdrop-filter: blur(3px); transition: all 0.4s;
+        }
+
+        #left-panel { width: 280px; flex-shrink: 0; padding: 15px; display:flex; flex-direction:column; }
+        #center-panel { flex: 1; position: relative; display:flex; flex-direction:column; padding:10px; min-width: 0; }
+        #right-panel { width: 260px; flex-shrink: 0; padding: 15px; display: flex; flex-direction: column; }
+
+        @media (max-width: 1200px) { 
+            #right-panel { width: 220px; } 
+            #left-panel { width: 240px; } 
+        }
+        @media (max-width: 900px) { 
+            #right-panel { display: none; } 
+            #left-panel { display: none; } 
+        }
+
+        .panel-header {
+            font-size: 0.9rem; font-weight: 700; color: var(--accent-color);
+            border-bottom: 2px solid var(--border-color); padding-bottom: 8px; margin-bottom: 10px;
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+
+        .btn {
+            background: rgba(255,255,255,0.05); border: 1px solid var(--accent-color);
+            color: var(--text-color); padding: 10px 15px; cursor: pointer;
+            font-family: var(--font-main); font-weight: 600; text-transform: uppercase;
+            transition: all 0.2s; border-radius: var(--btn-radius); font-size: 0.85rem;
+            margin-bottom: 5px; width: 100%; text-align:center;
+        }
+        .btn:hover:not(:disabled) { background: var(--accent-color); color: var(--bg-color); box-shadow: 0 0 10px var(--accent-color); }
+        .btn-danger { border-color: var(--danger-color); color: var(--danger-color); }
+        .btn-danger:hover:not(:disabled) { background: var(--danger-color); color: #fff; }
+        .btn-success { border-color: var(--success-color); color: var(--success-color); }
+        .btn-success:hover:not(:disabled) { background: var(--success-color); color: #000; }
+
+        .case-container { 
+            flex: 1; display: flex; flex-direction:column; 
+            align-items: stretch; justify-content: flex-start; 
+            overflow: hidden; width: 100%; position: relative;
+        }
+        
+        .threat-card {
+            background: rgba(0,0,0,0.2); border: 1px solid var(--secondary-color);
+            padding: 20px; width: 100%; height: 100%;
+            box-shadow: var(--shadow-glow); border-radius: var(--btn-radius);
+            position: relative; animation: fadeIn 0.3s;
+            display: flex; flex-direction: column;
+            box-sizing: border-box;
+        }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+
+        .threat-card h3 { color: var(--secondary-color); margin-top: 0; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; flex-shrink: 0; }
+        .threat-card p { 
+            font-size: 1.1rem; line-height: 1.5; margin-bottom: 15px; 
+            flex: 1; overflow-y: auto; min-height: 0;
+        }
+
+        .options-grid { 
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; 
+            margin-top: auto; flex-shrink: 0;
+            overflow-y: auto; max-height: 50%;
+        }
+        @media (max-width: 600px) { .options-grid { grid-template-columns: 1fr; } }
+        
+        .profile-list { 
+            display: flex; flex-direction: column; gap: 8px; 
+            overflow-y: auto; flex: 1; min-height: 0; 
+            padding-right: 5px;
+        }
+        .profile-list::-webkit-scrollbar { width: 6px; }
+        .profile-list::-webkit-scrollbar-thumb { background: var(--accent-color); border-radius: 3px; }
+        .profile-list::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+
+        .glossary-list {
+            display: flex; flex-direction: column; gap: 10px; 
+            overflow-y: auto; flex: 1; min-height: 0; padding-right: 5px;
+        }
+        .glossary-item {
+            font-size: 0.8rem; border-bottom: 1px solid var(--border-color); padding-bottom: 5px;
+        }
+        .glossary-term { color: var(--accent-color); font-weight: bold; display: block; margin-bottom: 2px; }
+        .glossary-def { opacity: 0.8; line-height: 1.3; }
+
+        .profile-card {
+            border: 1px solid var(--border-color); padding: 8px; 
+            border-radius: 4px; cursor: pointer; background: rgba(255,255,255,0.02);
+            display: flex; justify-content: space-between; align-items: center;
+            transition: 0.2s; font-size: 0.85rem;
+        }
+        .profile-card:hover { background: rgba(255,255,255,0.1); border-color: var(--accent-color); transform: translateX(5px); }
+        .profile-card.selected { background: var(--accent-color); color: var(--bg-color); border-color: var(--accent-color); }
+        
+        .profile-stats { font-size: 0.7rem; display:flex; gap:3px; }
+        .stat-badge { padding: 2px 4px; border-radius: 2px; background: rgba(0,0,0,0.3); font-weight: bold; min-width: 25px; text-align: center; }
+
+        .legend-box {
+            font-size: 0.75rem; background: rgba(255,255,255,0.03); 
+            padding: 8px; margin-bottom: 10px; border-radius: 4px; border: 1px dashed var(--border-color);
+        }
+        .legend-item { display: inline-block; margin-right: 10px; font-weight: bold; }
+
+        .team-slots-container {
+            flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 20px; width: 100%;
+        }
+        .slot-row { display: flex; gap: 15px; justify-content: center; width: 100%; flex-wrap: wrap; }
+        .slot {
+            width: 160px; height: 100px; border: 2px dashed var(--border-color); border-radius: 6px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: var(--text-color); opacity: 0.6; cursor: pointer; transition: 0.3s;
+            text-align: center; padding: 5px;
+        }
+        .slot.filled { 
+            border-style: solid; opacity: 1; background: rgba(0, 243, 255, 0.1); 
+            color: var(--accent-color); font-weight: bold; box-shadow: 0 0 10px var(--border-color);
+        }
+        
+        #active-case-box {
+            background: rgba(255, 158, 0, 0.05); border: 1px solid var(--secondary-color);
+            padding: 15px; margin-bottom: 15px; border-radius: 4px; font-size: 0.95rem; line-height: 1.5;
+            flex-shrink: 0;
+        }
+        #active-case-box h4 { margin: 0 0 10px 0; color: var(--secondary-color); border-bottom: 1px solid var(--secondary-color); padding-bottom: 5px; }
+
+        .log-entry { font-size: 0.8rem; margin-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 3px; font-family: var(--font-mono); }
+        .log-time { font-weight: bold; color: var(--secondary-color); margin-right: 5px; }
+        
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); backdrop-filter: blur(5px);
+            display: none; justify-content: center; align-items: center; z-index: 100; padding: 20px;
+        }
+        .modal {
+            background: var(--panel-bg); border: 2px solid var(--accent-color);
+            width: 100%; max-width: 700px; max-height: 90vh; overflow-y: auto;
+            padding: 30px; box-shadow: 0 0 30px var(--shadow-glow); color: var(--text-color);
+            border-radius: 8px;
+        }
+        .modal h2 { color: var(--accent-color); border-bottom: 1px solid var(--border-color); margin-top:0; padding-bottom:10px;}
+        
+        .phase-intro-box {
+            border: 1px solid var(--secondary-color); background: rgba(255, 158, 0, 0.05);
+            padding: 15px; margin: 15px 0; border-radius: 4px; flex-shrink: 0;
+        }
+        .phase-intro-box strong { color: var(--secondary-color); }
+
+        .feedback-content { text-align: left; line-height: 1.6; }
+        .feedback-concept { font-weight: bold; color: var(--accent-color); margin-bottom: 5px; display: block; }
+        .feedback-why { margin-bottom: 15px; }
+        .feedback-lesson { background: rgba(255,255,255,0.05); padding: 10px; border-left: 3px solid var(--secondary-color); font-style: italic; }
+
+    </style>
+</head>
+<body data-theme="tron">
+
+<div class="retro-grid"><div class="grid-plane"></div></div>
+
+<div id="top-bar">
+    <div class="logo-area">PROTOCOL<span style="color:var(--accent-color)">://</span>WAR_ROOM</div>
+    <div class="metric-group">
+        <div class="metric"><label>REPUTACIÓN</label><value id="val-rep" style="color:var(--accent-color)">100%</value></div>
+        <div class="metric"><label>CONFIANZA</label><value id="val-trust" style="color:var(--accent-color)">100%</value></div>
+        <div class="metric"><label>CASOS</label><value id="val-progress">0/90</value></div>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center;">
+        <button class="btn" id="music-btn" style="width:auto; padding:5px 10px; margin:0;" onclick="window.app.toggleMusic()" title="Activar Música">🔇</button>
+        <div class="timer-box" id="global-timer">40:00</div>
+        <button class="btn" style="width:auto; padding:5px 10px; margin:0;" onclick="window.app.cycleTheme()" title="Cambiar Tema">🎨</button>
+        <button class="btn btn-danger" style="width:auto; padding:5px 10px; margin:0;" onclick="window.app.confirmReset()" title="Reiniciar Simulación">⏻</button>
+    </div>
+</div>
+
+<div id="main-container">
+    <div id="left-panel" class="panel">
+        <div class="panel-header" id="left-header">ESTADO DE MISIÓN</div>
+        <div id="left-content" style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
+        </div>
+    </div>
+
+    <div id="center-panel" class="panel">
+        <div id="phase-banner" style="text-align:center; font-weight:bold; color:var(--accent-color); margin-bottom:10px; border-bottom:1px solid var(--border-color); padding-bottom:5px;">
+            SISTEMA INACTIVO
+        </div>
+        <div id="game-area" class="case-container">
+        </div>
+    </div>
+
+    <div id="right-panel" class="panel">
+        <div id="active-case-container" style="display:none;">
+            <div id="active-case-box">
+                <h4>CASO ACTIVO</h4>
+                <p id="active-case-desc">Cargando datos...</p>
+            </div>
+        </div>
+        <div class="panel-header">REGISTRO DE ACCIONES</div>
+        <div id="logs-container" style="flex:1; overflow-y:auto;"></div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modal-overlay">
+    <div class="modal" id="modal-content"></div>
+</div>
+
+<div class="modal-overlay" id="reset-overlay" style="display:none; z-index:200;">
+    <div class="modal" style="max-width:400px; text-align:center;">
+        <h2 style="color:var(--danger-color)">¿ABORTAR MISIÓN?</h2>
+        <p>Se borrará todo el progreso guardado. Esta acción es irreversible.</p>
+        <div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
+            <button class="btn" onclick="document.getElementById('reset-overlay').style.display='none'">CANCELAR</button>
+            <button class="btn btn-danger" onclick="window.app.hardReset()">CONFIRMAR</button>
+        </div>
+    </div>
+</div>
+
+<script>
+class AudioSynth {
+    constructor() {
+        this.ctx = null;
+        this.isPlaying = false;
+        this.tempo = 110;
+        this.noteTime = 60 / this.tempo / 4;
+        this.nextNoteTime = 0;
+        this.timerID = null;
+        this.beatCount = 0;
+        
+        this.scale = [110.00, 123.47, 130.81, 146.83, 164.81, 174.61, 196.00, 220.00]; 
+    }
+
+    init() {
+        if (!this.ctx) {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+    }
+
+    toggle() {
+        this.init();
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        
+        if (this.isPlaying) {
+            this.stop();
+            return false;
+        } else {
+            this.start();
+            return true;
+        }
+    }
+
+    start() {
+        this.isPlaying = true;
+        this.nextNoteTime = this.ctx.currentTime + 0.1;
+        this.scheduler();
+    }
+
+    stop() {
+        this.isPlaying = false;
+        if (this.timerID) clearTimeout(this.timerID);
+    }
+
+    scheduler() {
+        while (this.nextNoteTime < this.ctx.currentTime + 0.1) {
+            this.scheduleNote(this.beatCount, this.nextNoteTime);
+            this.nextNoteTime += this.noteTime;
+            this.beatCount++;
+        }
+        if (this.isPlaying) {
+            this.timerID = setTimeout(() => this.scheduler(), 25);
+        }
+    }
+
+    scheduleNote(beatNumber, time) {
+        const step = beatNumber % 16;
+        
+        if (step % 2 === 0) {
+            const freq = (step < 8) ? 55.00 : 48.99; 
+            this.playOsc(freq, 'sawtooth', time, 0.15, 0.2);
+        }
+
+        if (step === 0 || step === 3 || step === 7 || step === 10 || step === 12) {
+            const noteIdx = Math.floor(Math.random() * 4) + (step > 8 ? 2 : 0);
+            this.playOsc(this.scale[noteIdx] * 2, 'square', time, 0.1, 0.05);
+        }
+
+        if (step % 4 === 0) this.playNoise(time, 0.05, 0.3); 
+        if (step % 8 === 4) this.playNoise(time, 0.1, 0.1); 
+    }
+
+    playOsc(freq, type, time, dur, vol) {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        
+        osc.start(time);
+        gain.gain.setValueAtTime(vol, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+        osc.stop(time + dur);
+    }
+
+    playNoise(time, dur, vol) {
+        const bufferSize = this.ctx.sampleRate * dur;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        const gain = this.ctx.createGain();
+        
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 1000;
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        
+        gain.gain.setValueAtTime(vol, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+        noise.start(time);
+    }
+}
+
+class WarRoom {
+    constructor() {
+        this.defaultState = {
+            phase: 0,
+            timeRemaining: 40 * 60,
+            reputation: 100,
+            trust: 100,
+            currentCaseIndex: 0,
+            history: [],
+            theme: 'tron',
+            teamSelection: []
+        };
+        
+        this.state = this.loadState() || JSON.parse(JSON.stringify(this.defaultState));
+        this.timerInterval = null;
+        this.keyBuffer = '';
+        this.audio = new AudioSynth();
+
+        this.glossary = [
+            {t:"Phishing", d:"Engaño para robar credenciales (claves) simulando ser una entidad confiable."},
+            {t:"Ransomware", d:"Secuestro de datos cifrándolos para pedir rescate."},
+            {t:"DDoS", d:"Ataque de Denegación de Servicio. Saturar un servidor con tráfico falso."},
+            {t:"Fake News", d:"Noticias falsas creadas para dañar la reputación o causar pánico."},
+            {t:"Fuga de Datos", d:"Exposición no autorizada de información confidencial al exterior."},
+            {t:"Suplantación", d:"Hacerse pasar por una persona o marca para engañar a terceros."},
+            {t:"Malware", d:"Software malicioso (virus, troyanos, spyware) que daña el sistema."},
+            {t:"Ing. Social", d:"Manipulación psicológica de personas para obtener acceso o información."},
+            {t:"Insider", d:"Amenaza interna. Empleado (actual o ex) que ataca desde dentro."},
+            {t:"SQL Injection", d:"Ataque a base de datos a través de formularios web mal protegidos."},
+            {t:"Zero Day", d:"Vulnerabilidad nueva desconocida para la que no hay parche aún."},
+            {t:"Brute Force", d:"Intentar adivinar contraseñas probando miles de combinaciones."},
+            {t:"Man-in-Middle", d:"Interceptar comunicaciones entre dos partes sin que lo sepan."},
+            {t:"Deepfake", d:"Uso de IA para falsificar vídeos o audios de personas reales."},
+            {t:"Keylogger", d:"Software/Hardware que registra las pulsaciones del teclado."}
+        ];
+
+        this.profiles = [
+            { id: 'soc', name: 'Analista SOC', role: 'Técnico', skills: {tech:3, legal:0, comms:0}, cost: 2, desc: 'Monitorización de redes, virus y bloqueos técnicos.' },
+            { id: 'dev', name: 'Jefe Desarrollo', role: 'Técnico', skills: {tech:3, legal:0, comms:0}, cost: 2, desc: 'Parches de software, bugs en la web/app.' },
+            { id: 'sistemas', name: 'Admin Sistemas', role: 'Técnico', skills: {tech:2, legal:0, comms:0}, cost: 1, desc: 'Gestión de servidores, backups y hardware.' },
+            { id: 'legal', name: 'Asesoría Legal', role: 'Legal', skills: {tech:0, legal:3, comms:1}, cost: 3, desc: 'Demandas, denuncias policiales y contratos.' },
+            { id: 'dpo', name: 'DPO (Privacidad)', role: 'Legal', skills: {tech:1, legal:3, comms:0}, cost: 2, desc: 'Protección de datos, multas GDPR y notificaciones.' },
+            { id: 'prensa', name: 'Dir. Comunicación', role: 'Comms', skills: {tech:0, legal:1, comms:3}, cost: 3, desc: 'Prensa, comunicados oficiales y gestión de crisis pública.' },
+            { id: 'cm', name: 'Community Manager', role: 'Comms', skills: {tech:1, legal:0, comms:3}, cost: 1, desc: 'Redes sociales, moderación y respuesta a usuarios.' }
+        ];
+
+        this.db = {
+            phase1: this.generatePhase1(),
+            phase2: this.generatePhase2(),
+            phase3: this.generatePhase3()
+        };
+
+        document.body.setAttribute('data-theme', this.state.theme);
+
+        this.init();
+        this.setupCheats();
+    }
+
+    saveState() {
+        localStorage.setItem('warRoomState', JSON.stringify(this.state));
+    }
+
+    loadState() {
+        const s = localStorage.getItem('warRoomState');
+        return s ? JSON.parse(s) : null;
+    }
+
+    hardReset() {
+        localStorage.removeItem('warRoomState');
+        location.reload();
+    }
+
+    confirmReset() {
+        document.getElementById('reset-overlay').style.display = 'flex';
+    }
+
+    toggleMusic() {
+        const isPlaying = this.audio.toggle();
+        document.getElementById('music-btn').innerText = isPlaying ? '🔊' : '🔇';
+    }
+
+    generatePhase1() {
+        const cases = [
+            { t: "Phishing", d: "El director financiero recibe un correo urgente diciendo que su cuenta de Microsoft va a caducar hoy y debe hacer clic en un enlace para renovarla.", hint: "ANÁLISIS: Urgencia + Enlace sospechoso + Petición de acción. Es el patrón clásico de robo de credenciales.", lesson: "Nunca introduzcas contraseñas en enlaces recibidos por correo. Verifica la URL." },
+            { t: "Fake News", d: "Se viraliza un tweet con una foto trucada de nuestro almacén en llamas, causando pánico entre los inversores.", hint: "ANÁLISIS: La información es falsa y busca dañar la reputación, no atacar sistemas técnicos.", lesson: "La desinformación se combate con monitorización y desmentidos rápidos." },
+            { t: "Ransomware", d: "Varios empleados de contabilidad dicen que sus archivos tienen una extensión rara (.crypt) y hay un archivo de texto pidiendo bitcoins.", hint: "ANÁLISIS: Cifrado de archivos + Petición de rescate = Ransomware.", lesson: "Aislar los equipos infectados es la prioridad número uno para evitar la propagación." },
+            { t: "DDoS", d: "La tienda online va lentísima. El equipo técnico ve millones de visitas falsas entrando a la vez desde diferentes países.", hint: "ANÁLISIS: Tráfico masivo artificial diseñado para saturar el servicio.", lesson: "Se requiere mitigación a nivel de red o CDN para filtrar el tráfico malicioso." },
+            { t: "Fuga de Datos", d: "Aparece en un foro público un archivo Excel con los nombres, emails y teléfonos de nuestros clientes VIP.", hint: "ANÁLISIS: Información confidencial que ha salido del perímetro de la empresa.", lesson: "Las fugas requieren notificación legal (GDPR) y comunicación transparente." },
+            { t: "Suplantación", d: "Un cliente nos avisa de que hay una página web idéntica a la nuestra vendiendo nuestros productos más baratos, pero la URL es distinta.", hint: "ANÁLISIS: Uso no autorizado de marca e imagen para engañar (Phishing de marca).", lesson: "Hay que reportar el dominio fraudulento para su cierre inmediato." },
+            { t: "Malware", d: "El ordenador de recepción va muy lento y se abren ventanas de publicidad (pop-ups) solas, incluso sin navegar.", hint: "ANÁLISIS: Comportamiento anómalo del sistema típico de Adware o Spyware.", lesson: "Mantener el antivirus actualizado y no instalar software desconocido." },
+            { t: "Ingeniería Social", d: "Alguien llama a la oficina fingiendo ser del soporte técnico de Internet y pide la contraseña del Wi-Fi para 'hacer pruebas'.", hint: "ANÁLISIS: Manipulación psicológica para obtener acceso sin herramientas técnicas.", lesson: "El soporte técnico real nunca pide contraseñas por teléfono." },
+            { t: "Insider", d: "Los registros muestran que un empleado que fue despedido ayer ha entrado esta noche al servidor y ha borrado carpetas.", hint: "ANÁLISIS: Amenaza interna. Alguien con credenciales válidas haciendo daño.", lesson: "Al despedir a alguien, revocar sus accesos debe ser inmediato." },
+            { t: "SQL Injection", d: "Al poner una comilla (') en el buscador de nuestra web, aparece un error extraño de base de datos con códigos raros.", hint: "ANÁLISIS: Fallo de programación que expone la base de datos.", lesson: "Validar siempre la entrada de datos en los formularios web." },
+            { t: "Phishing", d: "Llega un SMS a los móviles de empresa diciendo 'Paquete retenido, pague tasas aquí' con un link extraño.", hint: "ANÁLISIS: Smishing (Phishing por SMS). Busca datos bancarios.", lesson: "Desconfía de SMS de servicios que no has solicitado." },
+            { t: "Fuga de Datos", d: "Un empleado sube una foto a Instagram de su escritorio y en el monitor se ve claramente una lista de contraseñas.", hint: "ANÁLISIS: Exposición accidental de información sensible.", lesson: "La concienciación en seguridad física y digital es vital." },
+            { t: "Ransomware", d: "Pantalla roja en los servidores de producción: 'Sus archivos han sido cifrados'. Nadie puede acceder a nada.", hint: "ANÁLISIS: Ataque destructivo que paraliza la operación.", lesson: "Las copias de seguridad offline son la única garantía de recuperación." },
+            { t: "Fake News", d: "Un blog anónimo publica que usamos materiales tóxicos en nuestros productos. Es mentira, pero la gente lo comparte.", hint: "ANÁLISIS: Ataque a la marca mediante mentiras.", lesson: "Monitorizar la marca en redes permite reaccionar antes de que sea viral." },
+            { t: "Suplantación", d: "Alguien ha creado una cuenta de Facebook con nuestro logo y contesta mal a los clientes fingiendo ser nosotros.", hint: "ANÁLISIS: Robo de identidad en redes sociales.", lesson: "Las cuentas verificadas ayudan a los usuarios a distinguir lo real de lo falso." },
+            { t: "Malware", d: "El antivirus salta en el equipo de Marketing detectando un troyano en un archivo descargado ilegalmente.", hint: "ANÁLISIS: Infección por software pirata o crackeado.", lesson: "Solo usar software legítimo y fuentes oficiales." },
+            { t: "DDoS", d: "La web corporativa devuelve 'Error 503' y los logs muestran un pico de tráfico absurdo desde una botnet.", hint: "ANÁLISIS: Ataque de volumen para tumbar la web.", lesson: "Tener planes de escalado o protección anti-DDoS es esencial hoy día." },
+            { t: "Ingeniería Social", d: "Un repartidor insiste en entrar hasta la sala de servidores para entregar un paquete 'muy urgente' sin identificarse.", hint: "ANÁLISIS: Intento de acceso físico por engaño.", lesson: "Nadie sin acreditación debe pasar de la recepción." },
+            { t: "Insider", d: "Un comercial se descarga la base de datos de clientes completa a un USB personal el día antes de irse a la competencia.", hint: "ANÁLISIS: Robo de propiedad intelectual desde dentro.", lesson: "Monitorizar la descarga masiva de archivos (DLP) ayuda a detectar esto." },
+            { t: "Phishing", d: "Correo del 'CEO' pidiendo al contable que haga una transferencia urgente a una cuenta extranjera en secreto.", hint: "ANÁLISIS: Fraude del CEO (Whaling). Ingeniería social dirigida.", lesson: "Verificar siempre pagos inusuales por un segundo canal (teléfono)." },
+            { t: "Man-in-the-Middle", d: "Usuarios en la cafetería reportan advertencias de certificado SSL al acceder a la web corporativa.", hint: "ANÁLISIS: Intercepción de tráfico en red insegura.", lesson: "El uso de VPN en redes públicas es obligatorio." },
+            { t: "Credential Stuffing", d: "Miles de intentos de login fallidos en segundos con diferentes usuarios.", hint: "ANÁLISIS: Prueba automatizada de contraseñas robadas.", lesson: "El límite de intentos de login frena estos ataques." },
+            { t: "Keylogger", d: "Un teclado físico tiene un dispositivo USB extraño conectado entre el cable y el PC.", hint: "ANÁLISIS: Hardware espía que registra pulsaciones.", lesson: "Revisión física de equipos críticos." },
+            { t: "Cross-Site Scripting", d: "Al entrar en nuestra web aparece un pop-up emergente pidiendo datos que nosotros no hemos programado.", hint: "ANÁLISIS: Inyección de código malicioso en el navegador.", lesson: "Sanitizar todo el input del usuario en la web." },
+            { t: "Zero Day", d: "Un ataque aprovecha una vulnerabilidad en Windows que Microsoft aún no ha parcheado.", hint: "ANÁLISIS: Ataque a vulnerabilidad desconocida.", lesson: "La defensa en profundidad mitiga lo desconocido." },
+            { t: "Brute Force", d: "Logs del servidor muestran intentos de adivinar la contraseña de 'admin' probando diccionarios.", hint: "ANÁLISIS: Fuerza bruta contra credenciales.", lesson: "Contraseñas robustas y bloqueo de IPs son la defensa." },
+            { t: "Rogue AP", d: "Aparece una red Wi-Fi llamada 'Empresa_Gratis' que no es nuestra, robando datos de quien se conecta.", hint: "ANÁLISIS: Punto de acceso falso.", lesson: "Educar a empleados sobre a qué redes conectarse." },
+            { t: "Deepfake", d: "Audio de voz del director autorizando una operación, pero suena ligeramente robótico.", hint: "ANÁLISIS: IA clonando voz para estafar.", lesson: "Verificar órdenes de voz por otro medio si son críticas." },
+            { t: "Supply Chain", d: "Una actualización de nuestro software de contabilidad introduce un virus en la red.", hint: "ANÁLISIS: Ataque a través de un proveedor de confianza.", lesson: "Auditar la seguridad de los proveedores." },
+            { t: "Spyware", d: "La batería de los móviles corporativos se agota muy rápido y consumen muchos datos en segundo plano.", hint: "ANÁLISIS: Software espía enviando información.", lesson: "MDM (Gestión de Móviles) para controlar apps instaladas." }
+        ];
+        return cases.map((c, i) => ({ id: i+1, ...c }));
+    }
+
+    generatePhase2() {
+        const cases = [
+            { d: "Rumores falsos virales en Twitter diciendo que la empresa está en quiebra. Los inversores llaman nerviosos.", req: {tech:0, legal:1, comms:2}, failMsg: "ERROR DE ESTRATEGIA: Para un problema de reputación necesitas COMUNICACIÓN (para desmentir) y LEGAL (para vigilar difamación). Un técnico no sirve de nada aquí.", lesson: "No respondas con tecnología a un problema de comunicación." },
+            { d: "Ataque de Ransomware ha cifrado los servidores de la fábrica. La producción está parada y piden rescate.", req: {tech:2, legal:1, comms:0}, failMsg: "ERROR CRÍTICO: Necesitas fuerza TÉCNICA para aislar la infección y restaurar copias, y LEGAL para evaluar las implicaciones del delito.", lesson: "En incidentes técnicos graves, Legal siempre debe acompañar a IT." },
+            { d: "Un hacker ha publicado la base de datos de usuarios con sus DNIs y correos en Internet.", req: {tech:1, legal:2, comms:1}, failMsg: "ERROR NORMATIVO: Una fuga de datos requiere al DPO/LEGAL para notificar a autoridades (GDPR) y COMMS para avisar a las víctimas.", lesson: "Las multas por no gestionar bien una fuga de datos son enormes." },
+            { d: "La web de ventas está caída por un ataque DDoS masivo justo en Black Friday.", req: {tech:2, legal:0, comms:1}, failMsg: "ERROR OPERATIVO: Necesitas TÉCNICOS para mitigar el ataque y COMMS para gestionar la frustración de los clientes.", lesson: "El silencio durante una caída técnica enfada más a los clientes." },
+            { d: "Un empleado despedido amenaza con publicar secretos industriales si no se le paga más finiquito.", req: {tech:1, legal:2, comms:0}, failMsg: "ERROR DE ENFOQUE: Esto es extorsión. Necesitas LEGAL para la denuncia y TÉCNICO para revocar accesos preventivamente.", lesson: "Las amenazas internas se gestionan con leyes y control de accesos." },
+            { d: "Campaña de correos de Phishing masivo llegando a todos los empleados. Algunos han picado.", req: {tech:2, legal:0, comms:1}, failMsg: "FALTAN RECURSOS: TÉCNICO debe limpiar el correo y resetear claves. COMMS debe alertar a todos para que no sigan cayendo.", lesson: "La comunicación interna es la mejor defensa contra el phishing masivo." },
+            { d: "Alguien ha creado una cuenta falsa del CEO en LinkedIn y está insultando a la competencia.", req: {tech:0, legal:1, comms:2}, failMsg: "ERROR DE REPUTACIÓN: LEGAL debe contactar a la plataforma para el borrado. COMMS debe aclarar que es falso.", lesson: "La suplantación requiere una respuesta pública rápida y firme." },
+            { d: "Los ordenadores del departamento comercial van muy lentos por un posible virus.", req: {tech:2, legal:0, comms:0}, failMsg: "SOBRA GENTE: Es un mantenimiento técnico rutinario. No involucres a prensa ni abogados en problemas menores de IT.", lesson: "No malgastes recursos estratégicos en incidencias de soporte." },
+            { d: "Un periodista importante llama preguntando por una supuesta brecha de seguridad que aún no hemos confirmado.", req: {tech:1, legal:0, comms:2}, failMsg: "ERROR DE VOCERÍA: Necesitas COMMS para ganar tiempo ('holding statement') y TÉCNICO para investigar la verdad.", lesson: "Nunca confirmes ni desmientas sin datos técnicos, pero atiende a la prensa." },
+            { d: "La Policía se presenta con una orden judicial pidiendo logs de acceso de un usuario.", req: {tech:1, legal:2, comms:0}, failMsg: "RIESGO LEGAL: Solo LEGAL puede validar una orden judicial. TÉCNICO debe extraer los datos con cadena de custodia.", lesson: "Entregar datos a la policía sin validación legal puede ser un delito." },
+            { d: "Un error en la programación de la web ha puesto todos los precios a 0 euros.", req: {tech:2, legal:1, comms:0}, failMsg: "Necesitas DEV/TÉCNICO para arreglar el bug ya, y LEGAL para ver si estamos obligados a vender a ese precio.", lesson: "Los errores de precio tienen implicaciones contractuales graves." },
+            { d: "Se ha perdido un portátil del Director General en un taxi. El disco no estaba cifrado.", req: {tech:1, legal:2, comms:0}, failMsg: "Es una brecha de datos potencial. DPO/LEGAL debe evaluar notificación. TÉCNICO intentar borrado remoto.", lesson: "La pérdida de dispositivos con datos personales es un incidente reportable." },
+            { d: "Cientos de comentarios de odio (bots) están inundando nuestro blog corporativo.", req: {tech:1, legal:0, comms:2}, failMsg: "TÉCNICO para filtros anti-spam. COMMS para moderar y proteger la marca.", lesson: "Los ataques de bots requieren barreras técnicas y gestión de comunidad." },
+            { d: "Nuestro proveedor de nube (AWS/Azure) ha caído. Nuestros servicios no funcionan.", req: {tech:1, legal:1, comms:1}, failMsg: "TÉCNICO habla con soporte. LEGAL revisa contratos (SLA). COMMS avisa a clientes.", lesson: "En fallos de terceros, la gestión contractual y comunicativa es clave." },
+            { d: "Inspección sorpresa de la Agencia de Protección de Datos.", req: {tech:0, legal:3, comms:0}, failMsg: "Exclusivo de DPO/LEGAL. Es un procedimiento administrativo puro.", lesson: "Ante una inspección, solo debe hablar el responsable legal o de privacidad." },
+            { d: "Circula un vídeo 'Deepfake' del CEO anunciando el cierre de la empresa.", req: {tech:1, legal:1, comms:2}, failMsg: "Crisis total. COMMS desmiente. LEGAL denuncia. TÉCNICO analiza el vídeo.", lesson: "Los Deepfakes son crisis de reputación que requieren análisis forense." },
+            { d: "Se detecta que un empleado usa el servidor de la empresa para minar criptomonedas.", req: {tech:2, legal:1, comms:0}, failMsg: "TÉCNICO para parar el proceso. LEGAL para el despido disciplinario.", lesson: "El mal uso de recursos corporativos es un asunto técnico-laboral." },
+            { d: "Intento de intrusión física en las oficinas de madrugada. La alarma ha saltado.", req: {tech:0, legal:2, comms:0}, failMsg: "Es un delito físico. LEGAL gestiona la denuncia. No es ciberseguridad.", lesson: "La seguridad física suele derivar en procesos legales, no informáticos." },
+            { d: "Usuarios se quejan masivamente de que la App móvil se cierra sola tras actualizar.", req: {tech:2, legal:0, comms:1}, failMsg: "DEV/TÉCNICO para arreglar el bug. COMMS para gestionar reviews negativas.", lesson: "Los fallos de producto requieren soporte y atención al cliente." },
+            { d: "Un grupo hacktivista anuncia en foros que atacará nuestra web mañana.", req: {tech:3, legal:0, comms:0}, failMsg: "Alerta preventiva. TÉCNICO (SOC) debe reforzar defensas.", lesson: "Ante amenazas de ciberataque, la prevención técnica es lo único efectivo." },
+            { d: "Sindicato denuncia vigilancia ilegal de emails.", req: {tech:1, legal:2, comms:1}, failMsg: "LEGAL revisa cumplimiento. TÉCNICO explica logs. COMMS interna.", lesson: "La privacidad del empleado es crítica." },
+            { d: "Filtración de fotos prototipo nuevo producto.", req: {tech:1, legal:2, comms:1}, failMsg: "LEGAL takedown. COMMS control daños. TÉCNICO busca origen.", lesson: "Proteger la propiedad intelectual es vital." },
+            { d: "Cliente importante exige auditoría de seguridad.", req: {tech:2, legal:1, comms:0}, failMsg: "TÉCNICO pasa auditoría. LEGAL revisa contrato.", lesson: "El cumplimiento es requisito de venta." },
+            { d: "Descubierta vulnerabilidad crítica en nuestro software.", req: {tech:3, legal:0, comms:1}, failMsg: "DEV parchea. COMMS nota de parche.", lesson: "La transparencia en parches fideliza." },
+            { d: "Caída de teléfonos VoIP de atención al cliente.", req: {tech:2, legal:0, comms:1}, failMsg: "TÉCNICO repara. COMMS avisa vías alternativas.", lesson: "La continuidad de negocio es prioridad." },
+            { d: "Ex-socio reclama propiedad del dominio web.", req: {tech:0, legal:3, comms:0}, failMsg: "Disputa puramente LEGAL.", lesson: "La propiedad de activos digitales debe estar clara." },
+            { d: "Campaña de activistas contra nuestra ética.", req: {tech:0, legal:0, comms:3}, failMsg: "Crisis de reputación pura. COMMS lidera.", lesson: "Los valores de marca se defienden comunicando." },
+            { d: "Incendio en el centro de datos secundario.", req: {tech:2, legal:1, comms:1}, failMsg: "TÉCNICO activa DR. LEGAL seguros. COMMS avisa impacto.", lesson: "La recuperación de desastres (DR) es técnica y logística." },
+            { d: "Detección de espionaje industrial por micrófono.", req: {tech:2, legal:2, comms:0}, failMsg: "TÉCNICO barrido. LEGAL denuncia.", lesson: "El espionaje requiere respuesta contundente." },
+            { d: "Proveedor de limpieza conecta USBs infectados.", req: {tech:2, legal:1, comms:0}, failMsg: "TÉCNICO limpia. LEGAL revisa contrato proveedor.", lesson: "La seguridad de proveedores físicos también cuenta." }
+        ];
+        return cases.map((c, i) => ({ id: i+1, ...c }));
+    }
+
+    generatePhase3() {
+        const cases = [
+            { d: "El grupo de cibercriminales 'BlackLock' ha cifrado el servidor principal de finanzas. Exigen 50.000€ en Bitcoin antes de 24 horas o borrarán la clave de descifrado para siempre. Tenemos backups de hace 24h. La producción está detenida.", opts: ["Pagar el rescate inmediatamente", "No pagar y restaurar copias de seguridad", "Negociar una rebaja"], ans: "No pagar y restaurar copias de seguridad", why: "Pagar financia el crimen y no garantiza la recuperación. Restaurar el backup es la opción segura aunque se pierda un día de trabajo.", lesson: "Backup, backup, backup." },
+            { d: "Un rumor viral en Twitter afirma que nuestros productos alimenticios están provocando intoxicaciones masivas. No hay ninguna prueba médica ni quejas reales en atención al cliente, pero el pánico crece y las acciones caen.", opts: ["Ignorarlo para no dar visibilidad", "Publicar desmentido con pruebas de laboratorio", "Atacar al que lo publicó"], ans: "Publicar desmentido con pruebas de laboratorio", why: "El silencio otorga validez al rumor. Hay que responder con transparencia radical y datos objetivos científicos.", lesson: "La verdad con datos mata el rumor." },
+            { d: "El departamento de IT confirma que se han filtrado los datos personales (DNI, email, dirección) de 1.000 clientes VIP. La filtración ya está en un foro de la Dark Web. Legal dice que tenemos 72h para notificar.", opts: ["Ocultarlo y esperar que nadie se entere", "Notificar a la AEPD y a los afectados", "Solo arreglar el agujero silenciosamente"], ans: "Notificar a la AEPD y a los afectados", why: "Ocultarlo es ilegal bajo el RGPD y destruiría la reputación de la empresa si se descubre más tarde. La honestidad es obligatoria.", lesson: "Transparencia genera confianza." },
+            { d: "La cuenta oficial de Twitter de la empresa ha sido secuestrada. El atacante está publicando insultos racistas y ofensivos contra nuestros competidores y clientes. No podemos entrar.", opts: ["Borrar la cuenta para siempre", "Contactar soporte y avisar por otros canales", "Insultar de vuelta para confundir"], ans: "Contactar soporte y avisar por otros canales", why: "Debes recuperar tu activo digital a través de soporte y mientras tanto advertir a tu audiencia por Instagram/Web para contener el daño.", lesson: "Nunca pierdas el control de tus canales oficiales." },
+            { d: "Un empleado de Recursos Humanos admite que introdujo su usuario y contraseña en una web falsa que simulaba ser el portal del empleado. Teme que hayan accedido a nóminas.", opts: ["Despedir al empleado inmediatamente", "Cambiar contraseña y activar 2FA", "Monitorizar su correo en secreto"], ans: "Cambiar contraseña y activar 2FA", why: "La prioridad es cerrar el acceso comprometido. Activar el Doble Factor (2FA) asegura que, aunque tengan la clave, no puedan entrar.", lesson: "El 2FA es la mejor defensa contra el robo de contraseñas." },
+            { d: "La página web corporativa está recibiendo 50 millones de peticiones por segundo, dejándola inaccesible para los clientes reales. Es un ataque DDoS masivo.", opts: ["Apagar el servidor para protegerlo", "Contratar servicio de mitigación Anti-DDoS", "Esperar a que se cansen"], ans: "Contratar servicio de mitigación Anti-DDoS", why: "Apagar el servidor cumple el objetivo del atacante (que nadie entre). Necesitas un servicio externo (CDN) que filtre el tráfico.", lesson: "La disponibilidad requiere inversión en infraestructura." },
+            { d: "Un empleado encuentra un USB con el logo de la empresa tirado en el aparcamiento. Tiene una etiqueta que dice 'Nóminas Directivos 2024'.", opts: ["Conectarlo para ver de quién es", "Entregarlo a IT sin conectar", "Tirarlo a la basura"], ans: "Entregarlo a IT sin conectar", why: "Es un ataque de 'USB Drop'. Conectarlo podría infectar la red con malware o quemar el puerto físico. IT lo analizará en entorno seguro.", lesson: "Jamás conectes dispositivos desconocidos." },
+            { d: "Un periodista conocido por ser agresivo llama a la centralita gritando, exigiendo confirmar si es cierto que vamos a despedir al 50% de la plantilla.", opts: ["Colgarle el teléfono", "Pedirle las preguntas por email", "Improvisar una respuesta rápida"], ans: "Pedirle las preguntas por email", why: "Improvisar en caliente suele llevar a errores graves. Pedir las preguntas por escrito gana tiempo para preparar una respuesta oficial.", lesson: "En comunicación de crisis, el control del tiempo es vital." },
+            { d: "Una auditoría revela que la contraseña del administrador del servidor principal es '123456' porque es fácil de recordar para el equipo.", opts: ["Cambiarla a una robusta inmediatamente", "Dejarla, así no se bloquea el acceso", "Culpar al proveedor externo"], ans: "Cambiarla a una robusta inmediatamente", why: "Las contraseñas débiles se rompen en milisegundos por fuerza bruta. Es una negligencia grave mantenerla.", lesson: "Usa gestores de contraseñas y claves complejas." },
+            { d: "El sistema de control de la fábrica funciona sobre Windows 7, que ya no recibe actualizaciones de seguridad de Microsoft desde hace años.", opts: ["Seguir usándolo con cuidado", "Planificar actualización/migración urgente", "Desconectar de internet y dejarlo así"], ans: "Planificar actualización/migración urgente", why: "El software obsoleto (EOL) es un coladero de virus. Aislarlo (air-gap) es temporal, pero la solución real es actualizar.", lesson: "La obsolescencia es un riesgo de seguridad." },
+            { d: "Un empleado de Marketing envía por error un email con la estrategia confidencial del año que viene a toda la lista de clientes en lugar de al equipo interno.", opts: ["Enviar otro email pidiendo perdón", "Intentar 'Recall' técnico inmediato", "No hacer nada y esperar"], ans: "Intentar 'Recall' técnico inmediato", why: "Si se actúa en segundos, es posible borrar el mensaje de los servidores antes de que muchos lo lean. Pedir perdón viene después.", lesson: "La velocidad de reacción técnica minimiza el impacto." },
+            { d: "El equipo comercial se conecta habitualmente al Wi-Fi abierto de cafeterías y aeropuertos para trabajar con datos de clientes.", opts: ["Prohibir trabajar fuera", "Obligar uso de VPN corporativa", "Dejarles, ahorra datos móviles"], ans: "Obligar uso de VPN corporativa", why: "Las redes públicas permiten espiar el tráfico. Una VPN crea un túnel cifrado seguro para trabajar desde cualquier lugar.", lesson: "Cifra siempre tus comunicaciones fuera de la oficina." },
+            { d: "El antivirus de un PC de recepción lleva 3 meses mostrando una alerta roja de 'Infección detectada', pero el usuario la cierra siempre.", opts: ["Escanear y limpiar todo el parque", "Desinstalar el antivirus molesto", "Reiniciar el equipo"], ans: "Escanear y limpiar todo el parque", why: "Una alerta ignorada tanto tiempo puede significar que el virus ya se ha movido lateralmente a otros equipos. Se requiere revisión profunda.", lesson: "La vigilancia constante es necesaria." },
+            { d: "Un antiguo cliente envía un burofax exigiendo que borremos todos sus datos personales de nuestros sistemas en virtud del Derecho al Olvido.", opts: ["Borrar sus datos personales", "Mantenerlos por si vuelve", "Cobrarle una tasa por borrar"], ans: "Borrar sus datos personales", why: "Es un derecho fundamental del RGPD. No cumplirlo conlleva sanciones muy graves.", lesson: "La privacidad es un derecho, no un favor." },
+            { d: "Nuestra nueva App de linterna para móviles pide permisos para acceder a la cámara, contactos, ubicación y micrófono del usuario.", opts: ["Justificarlo en la letra pequeña", "Reducir permisos a lo necesario", "Ignorar las quejas"], ans: "Reducir permisos a lo necesario", why: "Pedir datos innecesarios viola el principio de 'Privacidad por Diseño' y genera desconfianza en el mercado.", lesson: "Pide solo lo que necesites para funcionar." },
+            { d: "El servidor de archivos hace ruidos mecánicos fuertes (clic-clic) y va muy lento al guardar documentos.", opts: ["Darle un golpe técnico", "Revisar hardware y asegurar backup", "Subir el volumen de la música"], ans: "Revisar hardware y asegurar backup", why: "Los ruidos mecánicos en discos duros indican fallo físico inminente. Hay que salvar los datos antes de que muera del todo.", lesson: "El hardware falla. Los backups salvan vidas." },
+            { d: "Los navegadores muestran una alerta de 'Sitio No Seguro' al entrar en nuestra web porque el certificado SSL ha caducado hoy.", opts: ["Renovar certificado SSL urgentemente", "Quitar HTTPS para que entre", "Poner aviso de mantenimiento"], ans: "Renovar certificado SSL urgentemente", why: "Sin HTTPS, los datos viajan en texto claro y los clientes huyen por la alerta de seguridad. Es prioridad máxima.", lesson: "La seguridad web básica es innegociable." },
+            { d: "Un investigador de seguridad nos avisa en privado de que ha encontrado un agujero grave en nuestro software. Pide reconocimiento.", opts: ["Publicar parche de seguridad y agradecer", "Ocultarlo para no perder ventas", "Amenazar al investigador"], ans: "Publicar parche de seguridad y agradecer", why: "La seguridad responsable implica arreglar los fallos. Atacar al investigador suele llevar a que haga público el fallo sin arreglo (Full Disclosure).", lesson: "Reconocer y arreglar errores genera confianza." },
+            { d: "El contable recibe una llamada de alguien que suena idéntico al CEO, pidiendo una transferencia urgente a una cuenta en Hong Kong.", opts: ["Hacer la transferencia por ser el CEO", "Verificar con el CEO por otro canal", "Responder al email"], ans: "Verificar con el CEO por otro canal", why: "Es un ataque de Deepfake de voz o Vishing. Verificar por un canal diferente (llamada al móvil personal o cara a cara) confirma la estafa.", lesson: "Ante peticiones de dinero urgentes, verifica siempre." },
+            { d: "Detectamos accesos a nuestra cuenta de Instagram desde Rusia y Brasil a las 3 de la mañana.", opts: ["Cambiar claves y cerrar sesiones", "Crear cuentas nuevas", "Llamar a la policía"], ans: "Cambiar claves y cerrar sesiones", why: "Cambiar la contraseña no basta si la sesión sigue abierta. Hay que forzar el cierre de todas las sesiones activas.", lesson: "La gestión de sesiones es tan importante como la contraseña." },
+            { d: "Descubres a un compañero copiando la base de datos de clientes a un disco duro personal.", opts: ["Chivarse al jefe", "Reportar por canal ético anónimo", "Ignorar para no buscar líos"], ans: "Reportar por canal ético anónimo", why: "El canal ético es el procedimiento oficial y seguro para reportar irregularidades internas sin miedo a represalias.", lesson: "Los canales de denuncia protegen a la empresa." },
+            { d: "Un proveedor externo pide acceso de administrador total a nuestra red para instalar una impresora.", opts: ["Dar admin para acabar rápido", "Dar acceso mínimo necesario", "Negar el acceso"], ans: "Dar acceso mínimo necesario", why: "Principio de Mínimo Privilegio: solo da los permisos justos para la tarea, nunca administrador total a terceros.", lesson: "Control estricto de proveedores." },
+            { d: "Encontramos una tablet corporativa en una sala de reuniones sin código de bloqueo ni contraseña.", opts: ["Poner PIN/Biometría obligatorio", "Dejarla como está", "Esconderla en un cajón"], ans: "Poner PIN/Biometría obligatorio", why: "Cualquier dispositivo con datos de empresa debe tener bloqueo de pantalla. Es una medida básica de seguridad física.", lesson: "Seguridad del dispositivo móvil." },
+            { d: "Nuestra web está sufriendo inyecciones de código SQL que borran tablas de la base de datos.", opts: ["Restaurar y no hacer nada", "Sanitizar inputs y activar WAF", "Cambiar el nombre de la web"], ans: "Sanitizar inputs y activar WAF", why: "Hay que arreglar el código para que no acepte comandos maliciosos y poner un Firewall Web (WAF) delante.", lesson: "Desarrollo seguro desde el diseño." },
+            { d: "Un cibercriminal amenaza con publicar fotos privadas del CEO si no pagamos.", opts: ["Pagar el chantaje", "Denunciar a Policía y Legal", "Publicarlas nosotros antes"], ans: "Denunciar a Policía y Legal", why: "Es un delito de sextorsión o contra la intimidad. Pagar nunca garantiza el fin del chantaje.", lesson: "No ceder ante el chantaje personal." },
+            { d: "Los invitados que se conectan al Wi-Fi de la sala de espera pueden acceder a las carpetas compartidas de Finanzas.", opts: ["Segmentar red (VLAN)", "Apagar el wifi de invitados", "Poner contraseña fuerte"], ans: "Segmentar red (VLAN)", why: "La red de invitados debe estar totalmente aislada (VLAN) de la red corporativa interna.", lesson: "Segmentación de red es seguridad." },
+            { d: "El sistema de copias de seguridad automáticas lleva dando error 'Disco Lleno' desde hace un mes.", opts: ["Ignorar, ya se arreglará", "Arreglar espacio y probar restore", "Hacer una copia manual"], ans: "Arreglar espacio y probar restore", why: "Un backup que da error o no se prueba (restore) no existe. Es una falsa sensación de seguridad.", lesson: "La integridad del backup es crítica." },
+            { d: "Al terminar la jornada, hay documentos confidenciales impresos olvidados en la bandeja de la impresora.", opts: ["Leerlos por curiosidad", "Destruir o aplicar mesa limpia", "Dejarlos allí"], ans: "Destruir o aplicar mesa limpia", why: "Política de Mesas Limpias: no dejar información sensible al alcance de cualquiera (limpiadores, visitas).", lesson: "Seguridad física documental." },
+            { d: "Hay un corte de luz y el SAI (batería) no aguanta, los servidores se apagan de golpe.", opts: ["Realizar apagado ordenado", "Dejar que se caigan", "Soplar a los servidores"], ans: "Realizar apagado ordenado", why: "El SAI debe dar tiempo para un apagado controlado que evite la corrupción de bases de datos.", lesson: "Continuidad de negocio y energía." },
+            { d: "Un usuario admite que usa la misma contraseña 'Pa$$w0rd' para el correo, el banco y Facebook.", opts: ["Prohibir por política técnica", "Ignorar, es su vida", "Darle un premio"], ans: "Prohibir por política técnica", why: "El reuso de contraseñas permite ataques de Credential Stuffing. La política debe impedir claves comunes.", lesson: "Higiene de contraseñas." }
+        ];
+        return cases.map((c, i) => ({ id: i+1, ...c }));
+    }
+
+    init() {
+        if (!this.state.phase) {
+            this.showModal("PROTOCOLO DE CRISIS 3.0", `
+                <div class="phase-intro-box">
+                    <h3 style="text-align:center; margin:0;">BIENVENIDO AL PUESTO DE MANDO</h3>
+                </div>
+                <p>Has sido designado <strong>Comandante del Incidente</strong>. Tienes 40 minutos para gestionar una crisis digital a gran escala.</p>
+                <div class="tut-step">
+                    <h3>FASE 1: IDENTIFICACIÓN (30 Casos)</h3>
+                    <p>Analiza reportes. Entiende <strong>QUÉ</strong> está pasando (Virus, Engaño, Fallo).</p>
+                </div>
+                <div class="tut-step">
+                    <h3>FASE 2: GESTIÓN DE EQUIPOS (30 Casos)</h3>
+                    <p>Decide <strong>QUIÉN</strong> lo soluciona. Asigna TÉCNICOS, LEGALES o COMUNICADORES.</p>
+                </div>
+                <div class="tut-step">
+                    <h3>FASE 3: RESPUESTA (30 Casos)</h3>
+                    <p>Decide <strong>CÓMO</strong> actuar ante dilemas éticos y técnicos.</p>
+                </div>
+                <button class="btn" style="width:100%; margin-top:20px; font-size:1.1rem;" onclick="window.app.startPhase(1)">INICIAR SIMULACIÓN</button>
+            `);
+        } else {
+            this.startPhase(this.state.phase);
+        }
+        this.startTimer();
+        this.updateUI();
+    }
+
+    startTimer() {
+        if (this.timerInterval) clearInterval(this.timerInterval);
+        this.timerInterval = setInterval(() => {
+            this.state.timeRemaining--;
+            const m = Math.floor(this.state.timeRemaining / 60).toString().padStart(2, '0');
+            const s = (this.state.timeRemaining % 60).toString().padStart(2, '0');
+            const timerEl = document.getElementById('global-timer');
+            if(timerEl) timerEl.innerText = `${m}:${s}`;
+            if (this.state.timeRemaining <= 0) this.endGame(false, "TIEMPO AGOTADO.");
+        }, 1000);
+    }
+
+    setupCheats() {
+        window.addEventListener('keydown', (e) => {
+            this.state.keyBuffer += e.key;
+            if (this.state.keyBuffer.length > 10) this.state.keyBuffer = this.state.keyBuffer.slice(-10);
+            if (this.state.keyBuffer.endsWith('1412')) { this.log("CHEAT: FASE 2", "OK"); this.startPhase(2); }
+            if (this.state.keyBuffer.endsWith('1413')) { this.log("CHEAT: FASE 3", "OK"); this.startPhase(3); }
+            if (this.state.keyBuffer.endsWith('1415')) { this.log("CHEAT: INFORME PERFECTO", "OK"); this.exportPerfectReport(); }
+        });
+    }
+
+    cycleTheme() {
+        const themes = ['tron', 'pastel', 'grayscale'];
+        let idx = themes.indexOf(this.state.theme);
+        this.state.theme = themes[(idx + 1) % themes.length];
+        document.body.setAttribute('data-theme', this.state.theme);
+        this.saveState();
+    }
+
+    updateUI() {
+        document.getElementById('val-rep').innerText = this.state.reputation + "%";
+        document.getElementById('val-trust').innerText = this.state.trust + "%";
+        let totalDone = ((this.state.phase - 1) * 30) + this.state.currentCaseIndex;
+        if (totalDone < 0) totalDone = 0;
+        document.getElementById('val-progress').innerText = `${Math.min(90, totalDone)}/90`;
+    }
+
+    log(msg, type="INFO") {
+        const el = document.getElementById('logs-container');
+        const d = document.createElement('div');
+        d.className = `log-entry log-${type}`;
+        d.innerHTML = `<span class="log-time">[${new Date().toLocaleTimeString().split(' ')[0]}]</span> ${msg}`;
+        el.prepend(d);
+    }
+
+    startPhase(p) {
+        this.closeModal();
+        this.state.phase = p;
+        if(this.state.currentCaseIndex >= 30) this.state.currentCaseIndex = 0;
+        
+        this.saveState();
+        this.updateUI();
+
+        const leftContent = document.getElementById('left-content');
+        const centerArea = document.getElementById('game-area');
+        const rightCaseBox = document.getElementById('active-case-container');
+        const banner = document.getElementById('phase-banner');
+
+        rightCaseBox.style.display = 'none';
+        leftContent.innerHTML = '';
+        centerArea.innerHTML = '';
+
+        if (p === 1) {
+            banner.innerText = "FASE 1: IDENTIFICACIÓN DE AMENAZAS";
+            leftContent.innerHTML = `
+                <div class="phase-intro-box">
+                    <strong>INSTRUCCIONES FASE 1</strong>
+                    <p>Lee la tarjeta central. Clasifica la amenaza.</p>
+                </div>
+                <div class="glossary-list">
+                    ${this.glossary.map(g => `
+                        <div class="glossary-item">
+                            <span class="glossary-term">${g.t}</span>
+                            <span class="glossary-def">${g.d}</span>
+                        </div>
+                    `).join('')}
+                </div>`;
+        } 
+        else if (p === 2) {
+            banner.innerText = "FASE 2: GESTIÓN DE RECURSOS";
+            leftContent.innerHTML = `
+                <div class="phase-intro-box">
+                    <strong>INSTRUCCIONES FASE 2</strong>
+                    <p>Lee el caso (Derecha). Selecciona perfiles (Izquierda) para solucionarlo.</p>
+                </div>
+                <div class="legend-box">
+                    <strong>LEYENDA HABILIDADES:</strong><br>
+                    <span class="legend-item" style="color:#00f3ff">TEC: Técnica</span>
+                    <span class="legend-item" style="color:#ff9e00">LEG: Legal</span>
+                    <span class="legend-item" style="color:#ff0055">COM: Comunicación</span>
+                </div>
+                <div class="profile-list"></div>
+            `;
+            rightCaseBox.style.display = 'block';
+            if(this.state.currentCaseIndex === 0) this.showPhase2Tutorial();
+        }
+        else if (p === 3) {
+            banner.innerText = "FASE 3: RESPUESTA EJECUTIVA";
+            leftContent.innerHTML = `
+                <div class="phase-intro-box">
+                    <strong>INSTRUCCIONES FASE 3</strong>
+                    <p>Elige la mejor acción ante el dilema.</p>
+                </div>`;
+            if(this.state.currentCaseIndex === 0) this.showPhase3Tutorial();
+        }
+        this.renderCase();
+    }
+
+    showPhase2Tutorial() {
+        this.showModal("TUTORIAL FASE 2: EQUIPOS", `
+            <div class="tut-step">
+                <h3>CÓMO JUGAR ESTA FASE</h3>
+                <ol style="line-height:1.8; font-size:1.05rem;">
+                    <li>Lee el <strong>CASO ACTIVO</strong> en el panel derecho (arriba de los logs).</li>
+                    <li>Busca en el <strong>PANEL IZQUIERDO</strong> los profesionales necesarios (Legal, Técnico, Comms).</li>
+                    <li>Haz clic en ellos para añadirlos a los huecos del centro.</li>
+                    <li>Pulsa <strong>DESPLEGAR EQUIPO</strong>.</li>
+                </ol>
+            </div>
+            <div class="tut-step">
+                <h3>EJEMPLO</h3>
+                <p><strong>Caso:</strong> Demanda judicial.</p>
+                <p><strong>Solución:</strong> Necesitas <strong>Abogado</strong>. No sirve un Técnico.</p>
+            </div>
+            <button class="btn" onclick="window.app.closeModal()">ENTENDIDO</button>
+        `);
+    }
+
+    showPhase3Tutorial() {
+        this.showModal("TUTORIAL FASE 3: DECISIONES", `
+            <div class="tut-step">
+                <h3>CÓMO JUGAR ESTA FASE</h3>
+                <p>Ahora eres quien toma la decisión final. Se te presentará un problema complejo y tres opciones.</p>
+                <ul>
+                    <li><strong>Opción A:</strong> Suele ser la fácil o rápida, pero peligrosa.</li>
+                    <li><strong>Opción B:</strong> La correcta (ética y segura).</li>
+                    <li><strong>Opción C:</strong> Una mala práctica común.</li>
+                </ul>
+                <p>Debes elegir con prudencia. Un fallo aquí puede destruir la empresa.</p>
+            </div>
+            <button class="btn" onclick="window.app.closeModal()">COMENZAR</button>
+        `);
+    }
+
+    toggleTeamMember(id) {
+        const idx = this.state.teamSelection.indexOf(id);
+        if (idx > -1) {
+            this.state.teamSelection.splice(idx, 1);
+            document.getElementById(`p-${id}`).classList.remove('selected');
+        } else {
+            if (this.state.teamSelection.length < 3) {
+                this.state.teamSelection.push(id);
+                document.getElementById(`p-${id}`).classList.add('selected');
+            }
+        }
+        this.updateSlots();
+    }
+
+    updateSlots() {
+        for(let i=0; i<3; i++) {
+            const slot = document.getElementById(`slot-${i+1}`);
+            if (this.state.teamSelection[i]) {
+                const p = this.profiles.find(x => x.id === this.state.teamSelection[i]);
+                slot.innerHTML = `<div style="font-size:0.9rem; font-weight:bold;">${p.name}</div>`;
+                slot.className = 'slot filled';
+            } else {
+                slot.innerHTML = 'Vacío';
+                slot.className = 'slot';
+            }
+        }
+    }
+
+    showModal(title, content) {
+        document.getElementById('modal-content').innerHTML = `<h2>${title}</h2>${content}`;
+        document.getElementById('modal-overlay').style.display = 'flex';
+    }
+    closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
+
+    endGame(win, msg) {
+        clearInterval(this.timerInterval);
+        
+        setTimeout(() => this.exportReport(), 1000);
+
+        const learningMsg = `
+            <div class="feedback-content" style="margin-top:15px; border-top:1px solid var(--border-color); padding-top:15px;">
+                <strong>RESUMEN DE APRENDIZAJE:</strong>
+                <p>La gestión de incidentes no es solo técnica. Has aprendido que:</p>
+                <ul style="font-size:0.9rem; line-height:1.4; padding-left:20px;">
+                    <li><strong>Identificar</strong> correctamente la amenaza es el primer paso crítico.</li>
+                    <li><strong>Delegar</strong> en los perfiles adecuados (Legal vs Técnico vs Comunicación) es vital para no saturar recursos.</li>
+                    <li><strong>Decidir</strong> bajo presión requiere priorizar la ética y la seguridad a largo plazo sobre soluciones rápidas pero peligrosas.</li>
+                </ul>
+            </div>
+        `;
+
+        this.showModal(win ? "MISIÓN COMPLETADA" : "FIN DE LA SIMULACIÓN", `
+            <div style="text-align:center;">
+                <h3 style="color:${win ? 'var(--success-color)' : 'var(--danger-color)'}">${msg}</h3>
+                <p>Reputación Final: <strong style="font-size:1.2rem; color:var(--accent-color)">${this.state.reputation}%</strong></p>
+            </div>
+            ${learningMsg}
+            <div style="display:flex; gap:10px; justify-content:center; margin-top:20px; flex-wrap:wrap;">
+                <button class="btn" onclick="window.app.exportReport()">📄 DESCARGAR INFORME (PDF)</button>
+                <button class="btn btn-danger" onclick="window.app.hardReset()">🔄 REINICIAR SISTEMA</button>
+            </div>
+            <p style="font-size:0.8rem; opacity:0.7; text-align:center; margin-top:10px;">La descarga debería comenzar automáticamente...</p>
+        `);
+    }
+
+    exportReport(historyData = null) {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const hist = historyData || this.state.history;
+        const rep = historyData ? 100 : this.state.reputation;
+        
+        const uuid = crypto.randomUUID ? crypto.randomUUID() : "UNKNOWN-ID-" + Date.now();
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(22);
+        doc.setTextColor(0, 51, 102);
+        doc.text("INFORME DE AUDITORÍA DE CRISIS", 20, 20);
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(`FECHA: ${new Date().toLocaleString()}`, 20, 30);
+        doc.text(`ID OPERACIÓN: ${uuid}`, 100, 30);
+        
+        doc.setLineWidth(0.5);
+        doc.setDrawColor(200);
+        doc.line(20, 35, pageWidth - 20, 35);
+
+        doc.setFontSize(12);
+        doc.setTextColor(0);
+        doc.text(`PUNTUACIÓN FINAL: ${rep}/100`, 20, 45);
+        doc.text(`CASOS JUGADOS: ${hist.length}/90`, 20, 52);
+
+        let y = 65;
+        doc.setFontSize(14);
+        doc.text("DETALLE DE ACTUACIONES", 20, y);
+        y += 10;
+
+        hist.forEach((h, index) => {
+            if (y > 270) { doc.addPage(); y = 20; }
+            
+            if (h.correct) doc.setFillColor(240, 255, 240); 
+            else doc.setFillColor(255, 240, 240); 
+            doc.rect(15, y-5, pageWidth-30, 18, 'F');
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(10);
+            doc.setTextColor(0);
+            doc.text(`F${h.phase} - Caso #${index+1}`, 20, y);
+            
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(9);
+            const status = h.correct ? "[CORRECTO]" : "[FALLO]";
+            doc.text(`${status}`, 170, y);
+            
+            y += 5;
+            doc.setFontSize(8);
+            doc.setTextColor(50);
+            const desc = h.case.length > 90 ? h.case.substring(0,90) + "..." : h.case;
+            doc.text(`Sit: ${desc}`, 20, y);
+            y += 4;
+            doc.text(`Res: ${h.details}`, 20, y);
+            
+            y += 10;
+        });
+
+        doc.save(`INFORME_CRISIS_${uuid}.pdf`);
+    }
+
+    exportPerfectReport() {
+        const perfectHistory = [];
+        this.db.phase1.forEach(c => perfectHistory.push({phase:1, case:c.d, correct:true, details:"Identificación Correcta"}));
+        this.db.phase2.forEach(c => perfectHistory.push({phase:2, case:c.d, correct:true, details:"Equipo Óptimo"}));
+        this.db.phase3.forEach(c => perfectHistory.push({phase:3, case:c.d, correct:true, details:`Acción: ${c.ans}`}));
+        
+        this.exportReport(perfectHistory);
+    }
+
+    renderCase() {
+        if (this.state.currentCaseIndex >= 30) {
+            if (this.state.phase < 3) {
+                this.showModal(`FASE ${this.state.phase} COMPLETADA`, `
+                    <p>¡Fase superada!</p>
+                    <button class="btn" style="width:100%" onclick="window.app.startPhase(${this.state.phase + 1})">SIGUIENTE FASE >></button>
+                `);
+            } else {
+                this.endGame(true, "¡SIMULACIÓN COMPLETADA!");
+            }
+            return;
+        }
+
+        let data;
+        if (this.state.phase === 1) data = this.db.phase1[this.state.currentCaseIndex];
+        if (this.state.phase === 2) data = this.db.phase2[this.state.currentCaseIndex];
+        if (this.state.phase === 3) data = this.db.phase3[this.state.currentCaseIndex];
+
+        const container = document.getElementById('game-area');
+
+        if (this.state.phase === 1) {
+            const opts = ["Phishing", "Ransomware", "DDoS", "Fake News", "Fuga de Datos", "Suplantación", "Malware", "Ingeniería Social", "Insider", "SQL Injection", "Zero Day", "Brute Force", "Spyware", "Man-in-the-Middle", "Credential Stuffing", "Cross-Site Scripting", "Rogue AP", "Deepfake", "Supply Chain", "Keylogger"];
+            const buttons = opts.map(o => `<button class="btn" style="font-size:0.8rem; padding:8px;" onclick="window.app.handlePhase1('${o}')">${o}</button>`).join('');
+            container.innerHTML = `
+                <div class="threat-card">
+                    <h3>CASO ${this.state.currentCaseIndex + 1}/30</h3>
+                    <p>${data.d}</p>
+                    <div class="options-grid" style="grid-template-columns: repeat(3, 1fr);">${buttons}</div>
+                </div>
+            `;
+        }
+        else if (this.state.phase === 2) {
+            this.state.teamSelection = [];
+            const listContainer = document.querySelector('.profile-list');
+            if(listContainer) {
+                listContainer.innerHTML = this.profiles.map(p => `
+                    <div class="profile-card" id="p-${p.id}" onclick="window.app.toggleTeamMember('${p.id}')">
+                        <div><div style="font-weight:bold; color:var(--accent-color)">${p.name}</div><div style="font-size:0.75rem; opacity:0.8;">${p.desc}</div></div>
+                        <div class="profile-stats">
+                            ${p.skills.tech>0 ? `<span class="stat-badge" style="color:#00f3ff">T${p.skills.tech}</span>` : ''}
+                            ${p.skills.legal>0 ? `<span class="stat-badge" style="color:#ff9e00">L${p.skills.legal}</span>` : ''}
+                            ${p.skills.comms>0 ? `<span class="stat-badge" style="color:#ff0055">C${p.skills.comms}</span>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+            }
+            document.getElementById('active-case-desc').innerText = data.d;
+            container.innerHTML = `
+                <div class="team-slots-container">
+                    <div style="font-size:1rem; color:var(--secondary-color); font-weight:bold;">EQUIPO SELECCIONADO</div>
+                    <div class="slot-row">
+                        <div id="slot-1" class="slot">Vacío</div>
+                        <div id="slot-2" class="slot">Vacío</div>
+                        <div id="slot-3" class="slot">Vacío</div>
+                    </div>
+                    <button class="btn btn-success" style="width:200px; padding:15px;" onclick="window.app.handlePhase2()">DESPLEGAR EQUIPO</button>
+                </div>
+            `;
+        }
+        else if (this.state.phase === 3) {
+            container.innerHTML = `
+                <div class="threat-card">
+                    <h3>CASO ${this.state.currentCaseIndex + 1}/30</h3>
+                    <p>${data.d}</p>
+                    <div style="display:flex; flex-direction:column; gap:10px;">
+                        ${data.opts.map(o => `<button class="btn" style="text-align:left; padding:15px;" onclick="window.app.handlePhase3('${o}')">➤ ${o}</button>`).join('')}
+                    </div>
+                </div>
+            `;
+        }
+    }
+    
+    handlePhase1(ans) {
+        const data = this.db.phase1[this.state.currentCaseIndex];
+        const correct = ans === data.t;
+        this.state.history.push({ phase: 1, case: data.d, correct: correct, details: `Elegido: ${ans} | Correcto: ${data.t}` });
+        if (correct) this.successFeedback("¡IDENTIFICACIÓN CORRECTA!", data.hint, data.lesson);
+        else this.failFeedback("IDENTIFICACIÓN INCORRECTA", data.hint, data.lesson);
+        this.saveState();
+    }
+
+    handlePhase2() {
+        if (this.state.teamSelection.length === 0) { alert("Selecciona perfil."); return; }
+        const data = this.db.phase2[this.state.currentCaseIndex];
+        let tTech=0, tLegal=0, tComms=0;
+        this.state.teamSelection.forEach(pid => {
+            const p = this.profiles.find(x => x.id === pid);
+            tTech += p.skills.tech; tLegal += p.skills.legal; tComms += p.skills.comms;
+        });
+        let errors = [];
+        if (data.req.tech > 0 && tTech === 0) errors.push("Falta TÉCNICO");
+        if (data.req.legal > 0 && tLegal === 0) errors.push("Falta LEGAL");
+        if (data.req.comms > 0 && tComms === 0) errors.push("Falta COMUNICACIÓN");
+
+        const outcome = { phase: 2, case: data.d, correct: errors.length === 0, details: errors.length === 0 ? "Equipo Correcto" : "Equipo Incorrecto: " + errors.join(", ") };
+        this.state.history.push(outcome);
+
+        if (errors.length === 0) this.successFeedback("¡EQUIPO CORRECTO!", "Áreas cubiertas.", data.lesson);
+        else this.failFeedback("EQUIPO INCOMPLETO", data.failMsg, data.lesson);
+        this.saveState();
+    }
+
+    handlePhase3(ans) {
+        const data = this.db.phase3[this.state.currentCaseIndex];
+        const correct = ans === data.ans;
+        this.state.history.push({ phase: 3, case: data.d, correct: correct, details: `Acción: ${ans}` });
+        if (correct) this.successFeedback("DECISIÓN CORRECTA", data.why, data.lesson);
+        else this.failFeedback("DECISIÓN ARRIESGADA", data.why, data.lesson);
+        this.saveState();
+    }
+    
+    successFeedback(title, why, lesson) {
+        this.log(`CASO ${this.state.currentCaseIndex+1}: ÉXITO`, "OK");
+        this.showModal(title, `
+            <div class="feedback-content">
+                <div class="feedback-why">${why}</div>
+                <div class="feedback-lesson">💡 LECCIÓN: ${lesson}</div>
+                <button class="btn btn-success" style="margin-top:20px;" onclick="window.app.nextCase()">SIGUIENTE</button>
+            </div>
+        `);
+    }
+
+    failFeedback(title, why, lesson) {
+        this.log(`CASO ${this.state.currentCaseIndex+1}: FALLO`, "ERR");
+        this.state.reputation -= 5;
+        this.updateUI();
+        this.showModal(title, `
+            <div class="feedback-content">
+                <div style="color:var(--danger-color); margin-bottom:10px;">Has perdido reputación.</div>
+                <div class="feedback-why">${why}</div>
+                <div class="feedback-lesson">💡 LECCIÓN: ${lesson}</div>
+                <button class="btn btn-danger" style="margin-top:20px;" onclick="window.app.closeModal()">REINTENTAR</button>
+            </div>
+        `);
+    }
+
+    nextCase() {
+        this.closeModal();
+        this.state.currentCaseIndex++;
+        this.saveState();
+        this.updateUI();
+        this.renderCase();
+    }
+}
+
+window.app = new WarRoom();
+</script>
+</body>
+</html>
